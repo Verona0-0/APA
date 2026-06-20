@@ -1,0 +1,22 @@
+{
+    "DBType": "SQLite",
+    "DBDrivers": [
+        {
+            "Name": "MariaDB",
+            "LIB": "MyApp.Driver.MariaDB.dll",
+            "DBConfig": {
+                "Location": "[::1]:3306",
+                "Database": "myapp",
+                "UserName": "root",
+                "Password": ""
+            }
+        },
+        {
+            "Name": "SQLite",
+            "LIB": "MyApp.Driver.SQLite.dll",
+            "DBConfig": {
+                "Location": "app.db"
+            }
+        }
+    ]
+}

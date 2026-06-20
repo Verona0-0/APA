@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подписки на книги</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="Config.js"></script>
+    <script src="Addres.js"></script>
+    <script src="Services.js"></script>
+    <script src="Clients.js"></script>
+    <script src="Publications.js"></script>
+    <script src="Descriptions.js"></script>
+    <script src="Catalogs.js"></script>
+    <script src="Price.js"></script>
+    <script src="Report.js"></script>
+    <script src="AllSubscriptions.js"></script>
+    <script src="UI.js"></script>
+    <script src="Init.js"></script>
+</head>
+
+<body>
+    <!-- Форма входа / регистрации -->
+    <div id="auth-modal" class="modal-overlay">
+        <div class="auth-container">
+            <div class="auth-tabs">
+                <button class="tab-btn active" data-tab="login">Вход</button>
+                <button class="tab-btn" data-tab="register">Регистрация</button>
+            </div>
+            <form id="login-form" class="auth-form active">
+                <input type="text" placeholder="Логин" id="login-username" required>
+                <input type="password" placeholder="Пароль" id="login-password" required>
+                <button type="submit">Войти</button>
+            </form>
+            <form id="register-form" class="auth-form">
+                <input type="text" placeholder="Логин" id="reg-username" required>
+                <input type="email" placeholder="Email" id="reg-email" required>
+                <input type="text" placeholder="ФИО" id="reg-fullname" required>
+                <input type="password" placeholder="Пароль" id="reg-password" required>
+                <button type="submit">Зарегистрироваться</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="main-container" class="hidden">
+        <header class="header">
+            <div class="logo">📚 BookSub</div>
+            <div class="header-center"><h1 id="page-title">Отчёты</h1></div>
+            <div class="profile-section">
+                <span id="user-name"></span>
+                <button id="logout-btn">Выход</button>
+            </div>
+        </header>
+
+        <div class="sidebar">
+            <button data-section="subscriptions" class="menu-item active">Отчёты</button>
+            <button data-section="catalogs" class="menu-item">Каталоги</button>
+            <button data-section="publications" class="menu-item">Издания</button>
+            <button data-section="prices" class="menu-item">Цены</button>
+            <button data-section="clients" class="menu-item">Клиенты</button>
+            <button data-section="addresses" class="menu-item">Адреса</button>
+            <button data-section="services" class="menu-item">Сервисы</button>
+            <button data-section="all-subscriptions" class="menu-item">Подписки</button>
+        </div>
+
+        <main class="content">
+
+            <!-- Отчёты -->
+            <section id="subscriptions" class="section active">
+                <div class="section-header">
+                    <h2>Отчёты</h2>
+                    <button id="load-reports-btn" class="btn-primary">Загрузить</button>
+                </div>
+                <div class="cards-grid" id="reports-grid">
+                    <div class="card"><div class="card-title">Нажмите «Загрузить»</div></div>
+                </div>
+            </section>
+
+            <!-- Каталоги -->
+            <section id="catalogs" class="section">
+                <div class="section-header">
+                    <h2>Каталоги</h2>
+                    <div class="btn-group">
+                        <button id="load-catalogs-btn" class="btn-primary">Загрузить</button>
+                        <button id="add-catalog-btn" class="btn-primary">Добавить</button>
+                    </div>
+                </div>
+                <div id="catalogs-grid">
+                    <div class="catalog-block"><div class="empty-msg">Загрузите каталоги</div></div>
+                </div>
+            </section>
+
+            <!-- Издания -->
+            <section id="publications" class="section">
+                <div class="section-header">
+                    <h2>Издания</h2>
+                    <div class="btn-group">
+                        <button id="load-publications-btn" class="btn-primary">Загрузить</button>
+                        <button id="add-publication-btn" class="btn-primary">Добавить</button>
+                    </div>
+                </div>
+                <div class="cards-grid" id="publications-grid">
+                    <div class="card"><div class="card-title">Загрузите издания</div></div>
+                </div>
+            </section>
+
+            <!-- Цены -->
+            <section id="prices" class="section">
+                <div class="section-header">
+                    <h2>Цены подписок</h2>
+                    <div class="btn-group" style="flex-wrap:wrap;">
+                        <button id="load-prices-btn" class="btn-primary">Загрузить</button>
+                        <button id="add-price-btn" class="btn-primary">Добавить цену</button>
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                            <input type="checkbox" id="show-inactive-prices" onchange="toggleInactivePrices()">
+                            Показать неактивные
+                        </label>
+                    </div>
+                </div>
+                <div class="cards-grid" id="prices-grid">
+                    <div class="card"><div class="card-title">Загрузите цены</div></div>
+                </div>
+            </section>
+
+            <!-- Клиенты -->
+            <section id="clients" class="section">
+                <div class="section-header">
+                    <h2>Клиенты</h2>
+                    <div class="btn-group">
+                        <button id="load-clients-btn" class="btn-primary">Загрузить</button>
+                        <button id="add-client-btn" class="btn-primary">Добавить клиента</button>
+                    </div>
+                </div>
+                <div id="clients-grid">
+                    <div class="card"><div class="card-title">Загрузите клиентов</div></div>
+                </div>
+            </section>
+
+            <!-- Адреса -->
+            <section id="addresses" class="section">
+                <div class="section-header">
+                    <h2>Адреса доставки</h2>
+                    <button id="load-addresses-btn" class="btn-primary">Загрузить</button>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:2rem;align-items:start;">
+                    <!-- Типы адресов -->
+                    <div class="card" style="padding:1.5rem;">
+                        <h3 style="margin-bottom:1rem;color:var(--dark);">Типы адресов</h3>
+                        <div id="type-address-list"><div class="empty-msg">Загрузите адреса</div></div>
+                        <div style="margin-top:1.25rem;border-top:1px solid var(--accent);padding-top:1rem;">
+                            <label style="display:block;font-weight:600;margin-bottom:0.4rem;">Новый тип</label>
+                            <input type="text" id="new-type-address-name" placeholder="Название типа" class="field-input">
+                            <button class="btn-primary" onclick="saveNewTypeAddress()" style="margin-top:0.5rem;width:100%;">Добавить</button>
+                        </div>
+                    </div>
+                    <!-- Дерево адресов -->
+                    <div class="card" style="padding:1.5rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                            <h3 style="color:var(--dark);">Адреса</h3>
+                            <button class="btn-primary" onclick="showAddAddressModal(null)">+ Корневой адрес</button>
+                        </div>
+                        <div id="delivery-address-tree"><div class="empty-msg">Загрузите адреса</div></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Сервисы -->
+            <section id="services" class="section">
+                <div class="section-header">
+                    <h2>Сервисы</h2>
+                    <button id="load-services-btn" class="btn-primary">Загрузить</button>
+                </div>
+                <div style="max-width:600px;">
+                    <div id="services-list"><div class="empty-msg">Загрузите сервисы</div></div>
+                    <div class="card" style="padding:1.5rem;margin-top:1.5rem;">
+                        <h4 style="margin-bottom:1rem;">Добавить сервис</h4>
+                        <input type="text" id="new-service-name" placeholder="Название сервиса" class="field-input">
+                        <button class="btn-primary" onclick="saveNewService()" style="margin-top:0.75rem;width:100%;">Добавить</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Подписки -->
+            <section id="all-subscriptions" class="section">
+                <div class="section-header">
+                    <h2>Подписки</h2>
+                    <button id="load-all-subs-btn" class="btn-primary">Загрузить</button>
+                </div>
+                <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+                    <input type="text" id="subs-search" class="field-input" style="flex:1;min-width:200px;" placeholder="Поиск по клиенту или изданию...">
+                    <select id="subs-status-filter" class="field-input" style="width:180px;">
+                        <option value="all">Все статусы</option>
+                        <option value="active">Активные</option>
+                        <option value="expired">Истекшие</option>
+                    </select>
+                </div>
+                <div id="all-subs-container"><div class="empty-msg">Нажмите «Загрузить»</div></div>
+            </section>
+
+        </main>
+
+        <!-- ===== МОДАЛЬНЫЕ ОКНА ===== -->
+
+        <!-- Управление клиентом -->
+        <div id="client-modal" class="modal-overlay hidden">
+            <div class="modal-box wide">
+                <div class="modal-head">
+                    <h3>Клиент</h3>
+                    <button class="close-btn" onclick="closeModal('client-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="client-edit-id">
+
+                    <div style="margin-bottom:1.5rem;">
+                        <h4>Данные клиента</h4>
+                        <div class="form-row" style="margin-top:0.75rem;">
+                            <div class="field"><label>ФИО</label><input type="text" id="client-details-name"></div>
+                            <div class="field"><label>Телефон</label><input type="text" id="client-details-phone"></div>
+                        </div>
+                        <button class="btn-primary" onclick="saveClientChanges()">Сохранить</button>
+                    </div>
+
+                    <div style="margin-bottom:1.5rem;">
+                        <h4>Подписки</h4>
+                        <div id="client-details-subscriptions" style="margin-top:0.75rem;">Загрузка...</div>
+                    </div>
+
+                    <div>
+                        <h4>Оформить подписку</h4>
+                        <div class="form-row" style="margin-top:0.75rem;">
+                            <div class="field"><label>Издание</label><select id="subscription-publication"></select></div>
+                            <div class="field"><label>Дата начала</label><input type="date" id="subscription-date-start"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field"><label>Дата окончания</label><input type="date" id="subscription-date-end"></div>
+                            <div class="field">
+                                <label>Адрес доставки</label>
+                                <div id="address-selectors"></div>
+                                <input type="hidden" id="selected-address-id">
+                                <button class="btn-secondary" style="margin-top:0.5rem;font-size:0.85rem;" onclick="openNewAddrFromSubscription()">+ Создать новый адрес</button>
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="addSubscription()">Оформить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Управление изданием -->
+        <div id="publication-modal" class="modal-overlay hidden">
+            <div class="modal-box wide">
+                <div class="modal-head">
+                    <h3>Издание</h3>
+                    <button class="close-btn" onclick="closeModal('publication-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="publication-edit-id">
+
+                    <div style="display:grid;grid-template-columns:200px 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+                        <!-- Обложка -->
+                        <div>
+                            <h4 style="margin-bottom:0.75rem;">Обложка</h4>
+                            <div id="pub-cover-preview" class="cover-area">
+                                <span style="color:#999;font-size:0.9rem;">Нет обложки</span>
+                            </div>
+                            <div class="btn-group" style="margin-top:0.5rem;flex-wrap:wrap;">
+                                <input type="file" id="cover-file-input" accept="image/*" style="display:none">
+                                <button class="btn-primary" style="font-size:0.85rem;padding:0.5rem 0.85rem;" onclick="document.getElementById('cover-file-input').click()">Загрузить</button>
+                                <button class="btn-danger" id="delete-cover-btn" style="display:none;font-size:0.85rem;padding:0.5rem 0.85rem;" onclick="deletePubCover()">Удалить</button>
+                            </div>
+                        </div>
+                        <!-- Название -->
+                        <div>
+                            <h4 style="margin-bottom:0.75rem;">Основное</h4>
+                            <div class="field"><label>Название</label><input type="text" id="publication-edit-name"></div>
+                            <button class="btn-primary" onclick="savePublicationChanges()">Сохранить</button>
+
+                            <h4 style="margin-top:1.25rem;margin-bottom:0.5rem;">История цен</h4>
+                            <div id="publication-price-history">Загрузка...</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <h4>Описания</h4>
+                            <button class="btn-secondary" onclick="openTypeDescriptionsModal()">Типы описаний</button>
+                        </div>
+                        <div id="publication-descriptions-list">Загрузка...</div>
+                        <div style="margin-top:1rem;padding:1rem;background:var(--light);border-radius:12px;">
+                            <h5 style="margin-bottom:0.75rem;">Редактор</h5>
+                            <input type="hidden" id="editing-description-id">
+                            <div class="field"><label>Тип</label><select id="description-edit-type"></select></div>
+                            <div class="field"><label>Текст</label><textarea id="description-edit-text" rows="2"></textarea></div>
+                            <div class="btn-group">
+                                <button class="btn-primary" id="add-description-btn" onclick="addDescription()">Добавить</button>
+                                <button class="btn-primary" id="update-description-btn" style="display:none;" onclick="updateDescription()">Обновить</button>
+                                <button class="btn-secondary" id="cancel-edit-btn" style="display:none;" onclick="cancelDescriptionEdit()">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Каталог -->
+        <div id="catalog-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Каталог</h3>
+                    <button class="close-btn" onclick="closeModal('catalog-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="catalog-edit-id">
+                    <div class="field"><label>Название</label><input type="text" id="catalog-edit-name"></div>
+                    <div class="field"><label>Издания в каталоге</label>
+                        <div id="catalog-publications-list" style="max-height:300px;overflow:auto;"></div>
+                    </div>
+                    <button class="btn-primary" onclick="saveCatalogChanges()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Изменить цену -->
+        <div id="price-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Изменить цену</h3>
+                    <button class="close-btn" onclick="closeModal('price-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="price-edit-id">
+                    <div class="field"><label>Издание</label><input type="text" id="price-edit-publication" readonly style="background:#f5f5f5;"></div>
+                    <div class="field"><label>Цена (руб)</label><input type="number" id="price-edit-value" step="0.01" min="0"></div>
+                    <div class="field"><label>Дата начала</label><input type="date" id="price-edit-date-start"></div>
+                    <div class="field"><label>Дата окончания</label><input type="date" id="price-edit-date-end"></div>
+                    <button class="btn-primary" onclick="savePriceChanges()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Новая цена -->
+        <div id="new-price-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Добавить цену</h3>
+                    <button class="close-btn" onclick="closeModal('new-price-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="field"><label>Издание</label><select id="new-price-publication"></select></div>
+                    <div class="field"><label>Цена (руб)</label><input type="number" id="new-price-value" step="0.01" min="0"></div>
+                    <div class="field"><label>Дата начала</label><input type="date" id="new-price-date-start"></div>
+                    <div class="field"><label>Дата окончания (необязательно)</label><input type="date" id="new-price-date-end"></div>
+                    <button class="btn-primary" id="save-new-price">Добавить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Новый каталог -->
+        <div id="new-catalog-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Новый каталог</h3>
+                    <button class="close-btn" onclick="closeModal('new-catalog-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="field"><label>Название</label><input type="text" id="new-catalog-name"></div>
+                    <button class="btn-primary" id="save-new-catalog">Создать</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Новое издание -->
+        <div id="new-publication-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Новое издание</h3>
+                    <button class="close-btn" onclick="closeModal('new-publication-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="field"><label>Название</label><input type="text" id="new-publication-name"></div>
+                    <button class="btn-primary" id="save-new-publication">Создать</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Типы описаний -->
+        <div id="typedescriptions-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Типы описаний</h3>
+                    <button class="close-btn" onclick="closeModal('typedescriptions-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="typedescriptions-list"></div>
+                    <div style="margin-top:1rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Новый тип</label>
+                        <input type="text" id="new-type-name" placeholder="Название" class="field-input">
+                        <button class="btn-primary" onclick="addNewTypeDescription()" style="margin-top:0.5rem;">Добавить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Новый клиент -->
+        <div id="add-client-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Новый клиент</h3>
+                    <button class="close-btn" onclick="closeModal('add-client-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="field"><label>ФИО</label><input type="text" id="new-client-name" placeholder="Фамилия Имя Отчество"></div>
+                    <div class="field"><label>Телефон</label><input type="text" id="new-client-phone" placeholder="+7 (000) 000-00-00"></div>
+                    <button class="btn-primary" onclick="saveNewClient()">Добавить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Новый адрес -->
+        <div id="new-addr-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Новый адрес</h3>
+                    <button class="close-btn" onclick="closeModal('new-addr-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="new-addr-parent-id">
+                    <div id="new-addr-parent-label" style="color:var(--gray);margin-bottom:1rem;font-size:0.9rem;"></div>
+                    <div class="field"><label>Тип адреса</label><select id="new-addr-type"></select></div>
+                    <div class="field"><label>Название</label><input type="text" id="new-addr-name"></div>
+                    <button class="btn-primary" onclick="saveNewDeliveryAddress()">Добавить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Услуги подписки -->
+        <div id="sub-services-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Услуги подписки</h3>
+                    <button class="close-btn" onclick="closeModal('sub-services-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="sub-services-id">
+                    <h4 style="margin-bottom:0.75rem;">Текущие услуги</h4>
+                    <div id="sub-services-linked"></div>
+                    <h4 style="margin-top:1.25rem;margin-bottom:0.75rem;">Добавить услугу</h4>
+                    <div style="display:flex;gap:0.5rem;">
+                        <select id="sub-services-add-select" class="field-input" style="flex:1;"></select>
+                        <button class="btn-primary" onclick="addSubService()">Добавить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="notifications"></div>
+
+    <script>
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    </script>
+</body>
+</html>

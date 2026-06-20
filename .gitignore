@@ -1,0 +1,15 @@
+# .NET
+api/**/bin/
+api/**/obj/
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vs/
+.vscode/
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
