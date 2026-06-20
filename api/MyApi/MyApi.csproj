@@ -22,6 +22,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.9" />
+
+    <!-- Клиент объектного хранилища MinIO (S3-совместимое) для обложек -->
+    <PackageReference Include="Minio" Version="6.0.3" />
   </ItemGroup>
 
   <ItemGroup>

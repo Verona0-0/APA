@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyApi.Storage;
 using MyApi.Singletons;
 using OpenIddict.Validation.AspNetCore;
 
@@ -11,12 +12,11 @@ namespace MyApi.Controllers;
 [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 public class CoversController : ControllerBase
 {
-    private readonly IWebHostEnvironment _env;
+    private readonly IImageStorage _storage;
     private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
     private const long MaxFileSize = 10 * 1024 * 1024;
-    private const int  ChunkSize   = 64 * 1024;
 
-    public CoversController(IWebHostEnvironment env) => _env = env;
+    public CoversController(IImageStorage storage) => _storage = storage;
 
     [HttpGet("{id}")]
     public async Task StreamCover(int id)
@@ -24,23 +24,25 @@ public class CoversController : ControllerBase
         var pub = DAO.Instance.Publications.Get(id);
         if (pub?.CoverPath == null) { Response.StatusCode = 404; return; }
 
-        var fullPath = Path.Combine(WebRoot, pub.CoverPath);
-        if (!new FileInfo(fullPath).Exists) { Response.StatusCode = 404; return; }
+        // CoverPath хранит имя объекта в MinIO. Сначала узнаём его размер/тип/etag.
+        var stat = await _storage.StatAsync(pub.CoverPath, HttpContext.RequestAborted);
+        if (stat == null) { Response.StatusCode = 404; return; }
 
-        var info  = new FileInfo(fullPath);
-        var total = info.Length;
-        var etag  = $"\"{total}-{info.LastWriteTimeUtc.Ticks}\"";
+        var total = stat.Size;
+        var etag  = $"\"{stat.ETag}\"";
 
+        // Браузер уже держит эту версию в кэше — отдавать тело не нужно.
         if (Request.Headers.IfNoneMatch == etag) { Response.StatusCode = 304; return; }
 
         Response.Headers.AcceptRanges = "bytes";
         Response.Headers.ETag         = etag;
-        Response.Headers.LastModified = info.LastWriteTimeUtc.ToString("R");
-        Response.ContentType          = ContentTypeFor(Path.GetExtension(fullPath));
+        Response.Headers.LastModified = stat.LastModified.ToUniversalTime().ToString("R");
+        Response.ContentType          = string.IsNullOrEmpty(stat.ContentType) ? "application/octet-stream" : stat.ContentType;
 
         long from = 0, to = total - 1;
         var rangeHeader = Request.Headers.Range.ToString();
 
+        // Поддержка частичной загрузки (перемотка, докачка): отдаём только запрошенный кусок.
         if (!string.IsNullOrEmpty(rangeHeader))
         {
             if (!TryParseRange(rangeHeader, total, out from, out to) || from > to || to >= total)
@@ -55,7 +57,7 @@ public class CoversController : ControllerBase
         else Response.StatusCode = 200;
 
         Response.ContentLength = to - from + 1;
-        await StreamAsync(fullPath, from, to - from + 1, HttpContext.RequestAborted);
+        await _storage.StreamToAsync(pub.CoverPath, Response.Body, from, to - from + 1, HttpContext.RequestAborted);
     }
 
     [HttpPost("{id}")]
@@ -74,36 +76,20 @@ public class CoversController : ControllerBase
     {
         var pub = DAO.Instance.Publications.Get(id);
         if (pub == null) return NotFound();
-        if (pub.CoverPath != null) RemoveFile(pub.CoverPath);
+        // Старый объект удаляем — у нового будет другое имя (новый GUID).
+        if (pub.CoverPath != null) await _storage.DeleteAsync(pub.CoverPath, HttpContext.RequestAborted);
         return await SaveCover(id, file);
     }
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "OperatorOrAdmin")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
         var pub = DAO.Instance.Publications.Get(id);
         if (pub?.CoverPath == null) return NotFound();
-        RemoveFile(pub.CoverPath);
+        await _storage.DeleteAsync(pub.CoverPath, HttpContext.RequestAborted);
         DAO.Instance.Publications.SetCover(id, null);
         return NoContent();
-    }
-
-    private async Task StreamAsync(string path, long offset, long length, CancellationToken ct)
-    {
-        var buffer = new byte[ChunkSize];
-        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, ChunkSize, useAsync: true);
-        fs.Seek(offset, SeekOrigin.Begin);
-
-        long remaining = length;
-        while (remaining > 0 && !ct.IsCancellationRequested)
-        {
-            var read = await fs.ReadAsync(buffer.AsMemory(0, (int)Math.Min(ChunkSize, remaining)), ct);
-            if (read == 0) break;
-            await Response.Body.WriteAsync(buffer.AsMemory(0, read), ct);
-            await Response.Body.FlushAsync(ct);
-            remaining -= read;
-        }
     }
 
     private async Task<IActionResult> SaveCover(int id, IFormFile file)
@@ -115,27 +101,15 @@ public class CoversController : ControllerBase
         if (!AllowedExtensions.Contains(ext))
             return BadRequest($"Допустимые форматы: {string.Join(", ", AllowedExtensions)}.");
 
-        Directory.CreateDirectory(Path.Combine(WebRoot, "covers"));
+        var objectName = $"{Guid.NewGuid()}{ext}";
 
-        var fileName     = $"{Guid.NewGuid()}{ext}";
-        var relativePath = Path.Combine("covers", fileName);
+        // Поток запроса льём прямо в MinIO, минуя промежуточный файл и byte[].
+        await using var upload = file.OpenReadStream();
+        await _storage.SaveAsync(upload, objectName, ContentTypeFor(ext), file.Length, HttpContext.RequestAborted);
 
-        await using (var stream = new FileStream(Path.Combine(WebRoot, relativePath), FileMode.Create))
-            await file.CopyToAsync(stream);
-
-        DAO.Instance.Publications.SetCover(id, relativePath);
-        return Ok(new { url = $"/covers/{fileName}" });
+        DAO.Instance.Publications.SetCover(id, objectName);
+        return Ok(new { objectName });
     }
-
-    private void RemoveFile(string relativePath)
-    {
-        var full = Path.Combine(WebRoot, relativePath);
-        var fi = new FileInfo(full);
-        if (fi.Exists) fi.Delete();
-    }
-
-    private string WebRoot =>
-        _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 
     private static string ContentTypeFor(string ext) => ext.ToLowerInvariant() switch
     {

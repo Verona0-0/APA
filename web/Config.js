@@ -23,20 +23,19 @@ function formatDateLocale(dateStr) {
     return date.toLocaleDateString('ru-RU');
 }
 
-// ========== COOKIES ==========
+// ========== ХРАНИЛИЩЕ ТОКЕНА ==========
+// Токен держим в localStorage, а не в document.cookie: ~2 КБ JWT в cookie
+// не помещался (cookie молча обрезался в пустоту), и профиль падал с 401.
+// API объекта намеренно оставлен прежним (get/set/delete), чтобы не править вызовы в других файлах.
 window.cookies = {
-    set(name, value, days = 7) {
-        const expires = new Date(Date.now() + days * 864e5).toUTCString();
-        document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+    set(name, value) {
+        localStorage.setItem(name, value);
     },
     get(name) {
-        return document.cookie.split('; ').reduce((r, v) => {
-            const parts = v.split('=');
-            return parts[0] === name ? decodeURIComponent(parts[1]) : r;
-        }, '');
+        return localStorage.getItem(name) || '';
     },
     delete(name) {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        localStorage.removeItem(name);
     }
 };
 
@@ -94,8 +93,13 @@ window.login = async function (username, password) {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     window.cookies.set('token', data.access_token);
-    window.currentUser = await window.api('/api/Users/profile');
-    window.currentRole = window.currentUser.roles?.[0]?.toLowerCase() || 'client';
+    // Пишем в саму переменную currentUser (её читает весь остальной код),
+    // а window.* держим синхронно — иначе профиль уходит в window.currentUser,
+    // а currentUser остаётся null и страница падает на currentUser.username.
+    currentUser = await window.api('/api/Users/profile');
+    currentRole = currentUser.roles?.[0]?.toLowerCase() || 'client';
+    window.currentUser = currentUser;
+    window.currentRole = currentRole;
     return data;
 };
 
