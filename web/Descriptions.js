@@ -9,12 +9,12 @@ async function createDescription(data) {
     await api('/api/Description', { method: 'POST', body: JSON.stringify(data) });
 }
 
-async function updateDescription(id, data) {
+async function performUpdateDescription(id, data) {
     if (!data.name?.trim()) throw new Error('Введите текст');
     await api(`/api/Description/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
-async function deleteDescription(id) {
+async function performDeleteDescription(id) {
     await api(`/api/Description/${id}`, { method: 'DELETE' });
 }
 
@@ -85,7 +85,7 @@ window.updateDescription = async function () {
         if (!typeId || !text) throw new Error('Заполните поля');
         const all = await api('/api/Description');
         const old = all.find(d => d.descriptionID === descId);
-        await updateDescription(descId, {
+        await performUpdateDescription(descId, {
             publicationsID: old.publicationsID,
             typeDescriptionID: typeId,
             name: text
@@ -110,7 +110,7 @@ window.cancelDescriptionEdit = function () {
 window.deleteDescription = async function (descId) {
     if (!confirm('Удалить описание?')) return;
     try {
-        await deleteDescription(descId);
+        await performDeleteDescription(descId);
         notify('Описание удалено', 'success');
         const pubId = parseInt(document.getElementById('publication-edit-id').value);
         await loadPublicationDescriptions(pubId);

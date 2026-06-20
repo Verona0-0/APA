@@ -18,8 +18,20 @@ class DBPublications : IDBPublications
 
     public void Delete(int id)
     {
-        DAO.Instance.ExecuteNonQuery("DELETE FROM Publications WHERE PublicationsID = @id",
-            new List<SqliteParameter> { new SqliteParameter("@id", id) });
+        // FK-проверки в SQLite включены по умолчанию (Microsoft.Data.Sqlite),
+        // поэтому перед удалением издания вычищаем все строки, ссылающиеся на него.
+        // Каждый вызов получает свой экземпляр SqliteParameter: ADO.NET не позволяет
+        // делить один объект параметра между несколькими командами.
+        List<SqliteParameter> IdParam() => new() { new SqliteParameter("@id", id) };
+
+        DAO.Instance.ExecuteNonQuery(
+            "DELETE FROM SubscriptionServices WHERE SubscriptionID IN (SELECT SubscriptionsID FROM Subscriptions WHERE PublicationsID = @id)",
+            IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM Subscriptions WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM SubscriptionPrices WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM Description WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM PublicationsCatalogs WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM Publications WHERE PublicationsID = @id", IdParam());
     }
 
     public Publications? Get(int id)

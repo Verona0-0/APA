@@ -18,8 +18,19 @@ class DBPublications : IDBPublications
 
     public void Delete(int id)
     {
-        DAO.Instance.ExecuteNonQuery("DELETE FROM Publications WHERE PublicationsID = @id",
-            new List<MySqlParameter> { new MySqlParameter("@id", id) });
+        // Перед удалением издания вычищаем все строки, ссылающиеся на него через FK,
+        // иначе MariaDB откажется выполнять DELETE. Каждый вызов получает свой
+        // экземпляр MySqlParameter — ADO.NET не позволяет делить параметр между командами.
+        List<MySqlParameter> IdParam() => new() { new MySqlParameter("@id", id) };
+
+        DAO.Instance.ExecuteNonQuery(
+            "DELETE FROM SubscriptionServices WHERE SubscriptionID IN (SELECT SubscriptionsID FROM Subscriptions WHERE PublicationsID = @id)",
+            IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM Subscriptions WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM SubscriptionPrices WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM Description WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM PublicationsCatalogs WHERE PublicationsID = @id", IdParam());
+        DAO.Instance.ExecuteNonQuery("DELETE FROM Publications WHERE PublicationsID = @id", IdParam());
     }
 
     public Publications? Get(int id)

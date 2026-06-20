@@ -26,7 +26,7 @@ async function loadCatalogs() {
     } catch (e) { notify(e.message, 'error'); }
 }
 
-async function deleteCatalog(catalogId) {
+async function performDeleteCatalog(catalogId) {
     const rels = await api('/api/PublicationsCatalogs');
     const count = rels.filter(r => r.catalogsID === catalogId).length;
     if (count) throw new Error(`Каталог содержит ${count} изданий. Удалите связи сначала.`);
@@ -36,7 +36,7 @@ async function deleteCatalog(catalogId) {
 window.deleteCatalog = async function (catalogId) {
     if (confirm('Удалить каталог? Издания не будут удалены.')) {
         try {
-            await deleteCatalog(catalogId);
+            await performDeleteCatalog(catalogId);
             notify('Каталог удалён', 'success');
             await loadCatalogs();
         } catch (e) { notify(e.message, 'error'); }

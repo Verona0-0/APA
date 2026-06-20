@@ -30,7 +30,7 @@ async function updatePublication(id, name) {
     await api(`/api/Publications/${id}`, { method: 'PUT', body: JSON.stringify({ publicationsID: id, name }) });
 }
 
-async function deletePublication(id) {
+async function performDeletePublication(id) {
     const subs = await api('/api/Subscriptions');
     const related = subs.filter(s => s.publicationsID === id);
     if (related.length) throw new Error(`На издание оформлено ${related.length} подписок. Сначала удалите их.`);
@@ -40,7 +40,7 @@ async function deletePublication(id) {
 window.deletePublication = async function (id) {
     if (confirm('Удалить издание?')) {
         try {
-            await deletePublication(id);
+            await performDeletePublication(id);
             notify('Издание удалено', 'success');
             await loadPublications();
         } catch (e) { notify(e.message, 'error'); }
