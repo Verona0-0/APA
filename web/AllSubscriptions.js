@@ -24,8 +24,8 @@ async function loadAllSubscriptions() {
 
         applySubsFilters();
         setupSubsFilters();
-        notify('Подписки загружены', 'success');
-    } catch (e) { notify('Ошибка: ' + e.message, 'error'); }
+        dataLoaded.allSubscriptions = true;
+    } catch (e) { notify('Ошибка: ' + e.message, 'error'); showSectionError('all-subs-container'); }
 }
 
 function setupSubsFilters() {
@@ -108,7 +108,7 @@ function renderAllSubscriptions(subs) {
 }
 
 window.deleteAllSub = async function (id) {
-    if (!confirm('Удалить подписку?')) return;
+    if (!await confirmDialog('Удалить подписку?')) return;
     try {
         await api(`/api/Subscriptions/${id}`, { method: 'DELETE' });
         notify('Подписка удалена', 'success');

@@ -18,8 +18,8 @@ async function loadAddressSection() {
         ]);
         renderTypeAddressList();
         renderDeliveryAddressTree();
-        notify('Адреса загружены', 'success');
-    } catch (e) { notify('Ошибка: ' + e.message, 'error'); }
+        dataLoaded.addresses = true;
+    } catch (e) { notify('Ошибка: ' + e.message, 'error'); showSectionError('delivery-address-tree'); }
 }
 
 // --- Типы адресов ---
@@ -33,9 +33,9 @@ function renderTypeAddressList() {
     }
     el.innerHTML = typeAddresses.map(t => `
         <div class="list-row">
-            <span>${t.name}</span>
+            <span>${escapeHtml(t.name)}</span>
             <div class="row-actions">
-                <button class="btn-secondary" onclick="editTypeAddress(${t.typeAddressID}, '${t.name.replace(/'/g, "\\'")}')">Изменить</button>
+                <button class="btn-secondary" onclick="editTypeAddress(${t.typeAddressID})">Изменить</button>
                 <button class="btn-danger" onclick="deleteTypeAddressItem(${t.typeAddressID})">Удалить</button>
             </div>
         </div>
@@ -54,22 +54,24 @@ window.saveNewTypeAddress = async function () {
     } catch (e) { notify(e.message, 'error'); }
 };
 
-window.editTypeAddress = function (id, name) {
-    const newName = prompt('Новое название типа адреса:', name);
+window.editTypeAddress = async function (id) {
+    const current = typeAddresses.find(t => t.typeAddressID === id);
+    const newName = await promptDialog('Новое название типа адреса:', current?.name || '', { title: 'Тип адреса' });
     if (!newName?.trim()) return;
-    api(`/api/TypeAddress/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ typeAddressID: id, name: newName.trim() })
-    }).then(() => {
+    try {
+        await api(`/api/TypeAddress/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ typeAddressID: id, name: newName.trim() })
+        });
         notify('Тип обновлён', 'success');
         loadAddressSection();
-    }).catch(e => notify(e.message, 'error'));
+    } catch (e) { notify(e.message, 'error'); }
 };
 
 window.deleteTypeAddressItem = async function (id) {
     if (allAddressesFlat.some(a => a.typeAddressID === id))
         return notify('Нельзя удалить: тип используется в адресах', 'error');
-    if (!confirm('Удалить тип?')) return;
+    if (!await confirmDialog('Удалить тип адреса?')) return;
     try {
         await api(`/api/TypeAddress/${id}`, { method: 'DELETE' });
         notify('Тип удалён', 'success');
@@ -107,8 +109,8 @@ function renderAddrNodes(nodes, depth) {
                         title="${hasChildren ? (isCollapsed ? 'Развернуть' : 'Свернуть') : ''}">
                         ${hasChildren ? (isCollapsed ? '▶' : '▼') : ''}
                     </button>
-                    <span class="addr-type-badge">${typeName}</span>
-                    <span style="font-weight:600;flex:1;">${node.name}</span>
+                    <span class="addr-type-badge">${escapeHtml(typeName)}</span>
+                    <span style="font-weight:600;flex:1;">${escapeHtml(node.name)}</span>
                     <div class="row-actions">
                         <button class="btn-primary" style="padding:0.3rem 0.6rem;font-size:0.8rem;"
                             onclick="showAddAddressModal(${node.deliveryAddressID})">+ Дочерний</button>
@@ -195,7 +197,7 @@ window.saveNewDeliveryAddress = async function () {
 window.editAddressNode = async function (id) {
     const addr = allAddressesFlat.find(a => a.deliveryAddressID === id);
     if (!addr) return;
-    const newName = prompt('Новое название:', addr.name);
+    const newName = await promptDialog('Новое название:', addr.name, { title: 'Адрес' });
     if (!newName?.trim()) return;
     try {
         await api(`/api/DeliveryAddress/${id}`, {
@@ -210,7 +212,7 @@ window.editAddressNode = async function (id) {
 window.deleteAddressNode = async function (id) {
     if (allAddressesFlat.some(a => a.parentID === id))
         return notify('Сначала удалите дочерние адреса', 'error');
-    if (!confirm('Удалить адрес?')) return;
+    if (!await confirmDialog('Удалить адрес?')) return;
     try {
         await api(`/api/DeliveryAddress/${id}`, { method: 'DELETE' });
         notify('Адрес удалён', 'success');

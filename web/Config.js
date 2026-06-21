@@ -6,8 +6,17 @@ let dataLoaded = {
     publications: false,
     clients: false,
     reports: false,
-    prices: false
+    prices: false,
+    addresses: false,
+    services: false,
+    allSubscriptions: false
 };
+
+// Сброс флагов загрузки — например, при выходе/смене пользователя,
+// чтобы разделы перезапрашивали данные при следующем открытии.
+function resetDataLoaded() {
+    Object.keys(dataLoaded).forEach(k => dataLoaded[k] = false);
+}
 let currentClients = [], currentPublications = [], currentCatalogs = [], allPrices = [];
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -21,6 +30,13 @@ function formatDateLocale(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('ru-RU');
+}
+
+// Экранирование для безопасной вставки пользовательских строк в HTML.
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
 }
 
 // ========== ХРАНИЛИЩЕ ТОКЕНА ==========
@@ -114,3 +130,5 @@ window.allPrices = allPrices;
 window.API_BASE = API_BASE;
 window.formatDate = formatDate;
 window.formatDateLocale = formatDateLocale;
+window.escapeHtml = escapeHtml;
+window.resetDataLoaded = resetDataLoaded;

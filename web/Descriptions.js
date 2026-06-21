@@ -1,7 +1,12 @@
 // ========== ОПИСАНИЯ ==========
 
+let typeDescriptionsCache = [];
+
 async function loadTypeDescriptions() {
-    try { return await api('/api/TypeDescription') || []; } catch (e) { return []; }
+    try {
+        typeDescriptionsCache = await api('/api/TypeDescription') || [];
+        return typeDescriptionsCache;
+    } catch (e) { return []; }
 }
 
 async function createDescription(data) {
@@ -18,104 +23,78 @@ async function performDeleteDescription(id) {
     await api(`/api/Description/${id}`, { method: 'DELETE' });
 }
 
-async function loadTypesForDescription(selectedId = null) {
-    const types = await loadTypeDescriptions();
-    const select = document.getElementById('description-edit-type');
-    if (select) {
-        select.innerHTML = types.map(t => `<option value="${t.typeDescriptionID}" ${t.typeDescriptionID === selectedId ? 'selected' : ''}>${t.name || t.typeDescriptionID}</option>`).join('');
-        if (!types.length) select.innerHTML = '<option value="">Нет типов</option>';
-    }
-    return types;
-}
+// Редактор описаний издания «форма по типам»: на каждый тип описания —
+// своя подписанная строка со значением. Заполнил и сохранил всё разом.
+async function renderDescriptionsForm(pubId) {
+    const container = document.getElementById('publication-descriptions-form');
+    if (!container) return;
+    const [allDesc, types] = await Promise.all([
+        api('/api/Description').catch(() => []),
+        loadTypeDescriptions()
+    ]);
 
-async function loadPublicationDescriptions(pubId) {
-    const allDesc = await api('/api/Description') || [];
-    const types = await loadTypeDescriptions();
-    const typeMap = {};
-    types.forEach(t => typeMap[t.typeDescriptionID] = t.name);
-    const filtered = allDesc.filter(d => d.publicationsID === pubId);
-    const container = document.getElementById('publication-descriptions-list');
-    if (container) {
-        if (filtered.length) {
-            container.innerHTML = filtered.map(d => `
-                <div class="description-item">
-                    <div class="description-header"><span class="description-type">${typeMap[d.typeDescriptionID] || 'Тип ' + d.typeDescriptionID}</span></div>
-                    <div class="description-text">${d.name}</div>
-                    <div class="description-actions">
-                        <button class="edit-btn small" onclick="editDescription(${d.descriptionID})">✏️</button>
-                        <button class="remove-btn small" onclick="deleteDescription(${d.descriptionID})">🗑️</button>
-                    </div>
+    if (!types.length) {
+        container.innerHTML = '<div class="empty-msg">Нет типов описаний. Создайте их через кнопку «Типы описаний» (например: Страницы, Возраст, Жанр), затем заполните значения здесь.</div>';
+        return;
+    }
+
+    const pubDesc = (allDesc || []).filter(d => d.publicationsID === pubId);
+
+    // Существующие записи показываем отдельными строками (так не теряются
+    // даже несколько значений одного типа), а для пустых типов — одно поле.
+    const rows = [];
+    types.forEach(t => {
+        const entries = pubDesc.filter(d => d.typeDescriptionID === t.typeDescriptionID);
+        if (entries.length) {
+            entries.forEach(e => rows.push({ typeId: t.typeDescriptionID, typeName: t.name, descId: e.descriptionID, value: e.name || '' }));
+        } else {
+            rows.push({ typeId: t.typeDescriptionID, typeName: t.name, descId: '', value: '' });
+        }
+    });
+
+    container.innerHTML = `
+        <div class="desc-form">
+            ${rows.map(r => `
+                <div class="desc-row">
+                    <label class="desc-row-label">${escapeHtml(r.typeName)}</label>
+                    <input class="field-input desc-row-input" data-type="${r.typeId}" data-desc="${r.descId}"
+                        data-orig="${escapeHtml(r.value)}" value="${escapeHtml(r.value)}" placeholder="— не заполнено —">
                 </div>
-            `).join('');
-        } else container.innerHTML = '<div class="empty-message">Нет описаний</div>';
-    }
+            `).join('')}
+        </div>
+        <button class="btn-primary" id="save-descriptions-btn" style="margin-top:0.75rem;"
+            onclick="withButtonLoading(this, () => saveAllDescriptions(${pubId}))">Сохранить описания</button>
+    `;
 }
 
-window.addDescription = async function () {
+// Сохраняет всю форму: новые значения создаёт, изменённые обновляет,
+// очищенные (с уже существующей записью) удаляет.
+window.saveAllDescriptions = async function (pubId) {
+    const inputs = [...document.querySelectorAll('#publication-descriptions-form .desc-row-input')];
+    const tasks = [];
+    inputs.forEach(inp => {
+        const typeId = parseInt(inp.dataset.type);
+        const descId = inp.dataset.desc ? parseInt(inp.dataset.desc) : null;
+        const value = inp.value.trim();
+        const orig = (inp.dataset.orig || '').trim();
+        if (descId) {
+            if (!value) tasks.push(performDeleteDescription(descId));
+            else if (value !== orig) tasks.push(performUpdateDescription(descId, { publicationsID: pubId, typeDescriptionID: typeId, name: value }));
+        } else if (value) {
+            tasks.push(createDescription({ publicationsID: pubId, typeDescriptionID: typeId, name: value }));
+        }
+    });
+    if (!tasks.length) return notify('Изменений нет', 'warning');
     try {
-        const pubId = parseInt(document.getElementById('publication-edit-id').value);
-        const typeId = parseInt(document.getElementById('description-edit-type').value);
-        const text = document.getElementById('description-edit-text').value.trim();
-        if (!typeId) throw new Error('Выберите тип');
-        if (!text) throw new Error('Введите текст');
-        await createDescription({ publicationsID: pubId, typeDescriptionID: typeId, name: text });
-        notify('Описание добавлено', 'success');
-        document.getElementById('description-edit-text').value = '';
-        await loadPublicationDescriptions(pubId);
+        await Promise.all(tasks);
+        notify('Описания сохранены', 'success');
+        await renderDescriptionsForm(pubId);
+        // Обновляем карточки изданий (значок «есть описание»).
+        if (dataLoaded.publications) await loadPublications();
     } catch (e) { notify(e.message, 'error'); }
 };
 
-window.editDescription = async function (descId) {
-    const all = await api('/api/Description');
-    const desc = all.find(d => d.descriptionID === descId);
-    if (!desc) return notify('Описание не найдено', 'error');
-    document.getElementById('editing-description-id').value = descId;
-    await loadTypesForDescription(desc.typeDescriptionID);
-    document.getElementById('description-edit-text').value = desc.name;
-    document.getElementById('add-description-btn').style.display = 'none';
-    document.getElementById('update-description-btn').style.display = 'inline-flex';
-    document.getElementById('cancel-edit-btn').style.display = 'inline-flex';
-};
-
-window.updateDescription = async function () {
-    try {
-        const descId = parseInt(document.getElementById('editing-description-id').value);
-        const typeId = parseInt(document.getElementById('description-edit-type').value);
-        const text = document.getElementById('description-edit-text').value.trim();
-        if (!typeId || !text) throw new Error('Заполните поля');
-        const all = await api('/api/Description');
-        const old = all.find(d => d.descriptionID === descId);
-        await performUpdateDescription(descId, {
-            publicationsID: old.publicationsID,
-            typeDescriptionID: typeId,
-            name: text
-        });
-        notify('Описание обновлено', 'success');
-        cancelDescriptionEdit();
-        const pubId = parseInt(document.getElementById('publication-edit-id').value);
-        await loadPublicationDescriptions(pubId);
-    } catch (e) { notify(e.message, 'error'); }
-};
-
-window.cancelDescriptionEdit = function () {
-    document.getElementById('editing-description-id').value = '';
-    document.getElementById('description-edit-text').value = '';
-    document.getElementById('add-description-btn').style.display = 'inline-flex';
-    document.getElementById('update-description-btn').style.display = 'none';
-    document.getElementById('cancel-edit-btn').style.display = 'none';
-    const typeSelect = document.getElementById('description-edit-type');
-    if (typeSelect && typeSelect.options.length) typeSelect.selectedIndex = 0;
-};
-
-window.deleteDescription = async function (descId) {
-    if (!confirm('Удалить описание?')) return;
-    try {
-        await performDeleteDescription(descId);
-        notify('Описание удалено', 'success');
-        const pubId = parseInt(document.getElementById('publication-edit-id').value);
-        await loadPublicationDescriptions(pubId);
-    } catch (e) { notify(e.message, 'error'); }
-};
+window.renderDescriptionsForm = renderDescriptionsForm;
 
 // Управление типами описаний
 async function loadAllTypeDescriptions() {
@@ -151,9 +130,9 @@ async function renderTypeDescriptionsList() {
     if (types.length) {
         container.innerHTML = types.map(t => `
             <div class="type-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #ddd;">
-                <span>${t.name}</span>
+                <span>${escapeHtml(t.name)}</span>
                 <div>
-                    <button class="edit-btn small" onclick="editTypeDescription(${t.typeDescriptionID}, '${t.name.replace(/'/g, "\\'")}')">✏️</button>
+                    <button class="edit-btn small" onclick="editTypeDescription(${t.typeDescriptionID})">✏️</button>
                     <button class="remove-btn small" onclick="deleteTypeDescriptionHandler(${t.typeDescriptionID})">🗑️</button>
                 </div>
             </div>
@@ -163,29 +142,35 @@ async function renderTypeDescriptionsList() {
     }
 }
 
-window.editTypeDescription = function (id, currentName) {
-    const newName = prompt('Введите новое название типа:', currentName);
-    if (newName && newName.trim()) {
-        updateTypeDescription(id, newName.trim())
-            .then(() => {
-                notify('Тип обновлён', 'success');
-                renderTypeDescriptionsList();
-                loadTypesForDescription();
-            })
-            .catch(e => notify(e.message, 'error'));
-    }
+window.editTypeDescription = async function (id) {
+    const current = typeDescriptionsCache.find(t => t.typeDescriptionID === id);
+    const newName = await promptDialog('Введите новое название типа:', current?.name || '', { title: 'Тип описания' });
+    if (!newName || !newName.trim()) return;
+    try {
+        await updateTypeDescription(id, newName.trim());
+        notify('Тип обновлён', 'success');
+        renderTypeDescriptionsList();
+        refreshOpenDescriptionsForm();
+    } catch (e) { notify(e.message, 'error'); }
 };
 
 window.deleteTypeDescriptionHandler = async function (id) {
-    if (confirm('Удалить тип? Это может затронуть описания.')) {
+    if (await confirmDialog('Удалить тип? Это может затронуть описания.')) {
         try {
             await deleteTypeDescription(id);
             notify('Тип удалён', 'success');
             renderTypeDescriptionsList();
-            loadTypesForDescription();
+            refreshOpenDescriptionsForm();
         } catch (e) { notify(e.message, 'error'); }
     }
 };
+
+// Перерисовать форму описаний, если сейчас открыто редактирование издания.
+function refreshOpenDescriptionsForm() {
+    const pubId = parseInt(document.getElementById('publication-edit-id').value);
+    const modal = document.getElementById('publication-modal');
+    if (pubId && modal && !modal.classList.contains('hidden')) renderDescriptionsForm(pubId);
+}
 
 window.addNewTypeDescription = async function () {
     const input = document.getElementById('new-type-name');
@@ -196,6 +181,7 @@ window.addNewTypeDescription = async function () {
         notify('Тип добавлен', 'success');
         input.value = '';
         renderTypeDescriptionsList();
-        loadTypesForDescription();
+        // Если открыто редактирование издания — показать новый тип в форме описаний.
+        refreshOpenDescriptionsForm();
     } catch (e) { notify(e.message, 'error'); }
 };

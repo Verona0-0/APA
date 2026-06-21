@@ -5,8 +5,8 @@ async function loadServicesSection() {
     try {
         allServices = await api('/api/Services') || [];
         renderServicesList();
-        notify('Сервисы загружены', 'success');
-    } catch (e) { notify('Ошибка: ' + e.message, 'error'); }
+        dataLoaded.services = true;
+    } catch (e) { notify('Ошибка: ' + e.message, 'error'); showSectionError('services-list'); }
 }
 
 function renderServicesList() {
@@ -18,9 +18,9 @@ function renderServicesList() {
     }
     el.innerHTML = allServices.map(s => `
         <div class="list-row">
-            <strong>${s.name}</strong>
+            <strong>${escapeHtml(s.name)}</strong>
             <div class="row-actions">
-                <button class="btn-secondary" onclick="editService(${s.servicesID}, '${s.name.replace(/'/g, "\\'")}')">Изменить</button>
+                <button class="btn-secondary" onclick="editService(${s.servicesID})">Изменить</button>
                 <button class="btn-danger" onclick="deleteServiceItem(${s.servicesID})">Удалить</button>
             </div>
         </div>
@@ -39,20 +39,22 @@ window.saveNewService = async function () {
     } catch (e) { notify(e.message, 'error'); }
 };
 
-window.editService = function (id, name) {
-    const newName = prompt('Новое название сервиса:', name);
+window.editService = async function (id) {
+    const current = allServices.find(s => s.servicesID === id);
+    const newName = await promptDialog('Новое название сервиса:', current?.name || '', { title: 'Сервис' });
     if (!newName?.trim()) return;
-    api(`/api/Services/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ servicesID: id, name: newName.trim() })
-    }).then(() => {
+    try {
+        await api(`/api/Services/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ servicesID: id, name: newName.trim() })
+        });
         notify('Сервис обновлён', 'success');
         loadServicesSection();
-    }).catch(e => notify(e.message, 'error'));
+    } catch (e) { notify(e.message, 'error'); }
 };
 
 window.deleteServiceItem = async function (id) {
-    if (!confirm('Удалить сервис?')) return;
+    if (!await confirmDialog('Удалить сервис?')) return;
     try {
         await api(`/api/Services/${id}`, { method: 'DELETE' });
         notify('Сервис удалён', 'success');

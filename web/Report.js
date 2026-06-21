@@ -5,8 +5,7 @@ async function loadReports() {
         const subs = await api('/api/Subscriptions');
         renderReports(subs);
         dataLoaded.reports = true;
-        notify('Отчёты загружены', 'success');
-    } catch (e) { notify(e.message, 'error'); }
+    } catch (e) { notify(e.message, 'error'); showSectionError('reports-grid'); }
 }
 
 function renderReports(subs) {

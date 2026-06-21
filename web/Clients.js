@@ -7,8 +7,7 @@ async function loadClients() {
         currentClients = clients.map(c => ({ ...c, id: c.clientID }));
         renderClientsList(currentClients);
         dataLoaded.clients = true;
-        notify('Клиенты загружены', 'success');
-    } catch (e) { notify('Ошибка загрузки клиентов: ' + e.message, 'error'); }
+    } catch (e) { notify('Ошибка загрузки клиентов: ' + e.message, 'error'); showSectionError('clients-grid'); }
 }
 
 async function getClientSubscriptions(clientId) {
@@ -52,7 +51,7 @@ window.saveNewClient = async function () {
 
 window.deleteClient = async function (clientId, event) {
     if (event) event.stopPropagation();
-    if (!confirm('Удалить клиента?')) return;
+    if (!await confirmDialog('Удалить клиента?')) return;
     try {
         const subs = await getClientSubscriptions(clientId);
         const active = subs.filter(s => !s.dateEnd || new Date(s.dateEnd) > new Date());
@@ -150,7 +149,7 @@ window.addSubscription = async function () {
 };
 
 window.deleteSubscription = async function (subId) {
-    if (!confirm('Удалить подписку?')) return;
+    if (!await confirmDialog('Удалить подписку?')) return;
     try {
         await api(`/api/Subscriptions/${subId}`, { method: 'DELETE' });
         notify('Подписка удалена', 'success');

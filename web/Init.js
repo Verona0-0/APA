@@ -15,15 +15,18 @@ async function init() {
 }
 
 function setupEventListeners() {
-    // Кнопки загрузки данных
-    document.getElementById('load-reports-btn')?.addEventListener('click', () => { dataLoaded.reports = false; loadReports(); });
-    document.getElementById('load-catalogs-btn')?.addEventListener('click', () => { dataLoaded.catalogs = false; loadCatalogs(); });
-    document.getElementById('load-publications-btn')?.addEventListener('click', () => { dataLoaded.publications = false; loadPublications(); });
-    document.getElementById('load-clients-btn')?.addEventListener('click', () => { dataLoaded.clients = false; loadClients(); });
-    document.getElementById('load-prices-btn')?.addEventListener('click', () => { dataLoaded.prices = false; loadSubscriptionPrices(); });
-    document.getElementById('load-addresses-btn')?.addEventListener('click', loadAddressSection);
-    document.getElementById('load-services-btn')?.addEventListener('click', loadServicesSection);
-    document.getElementById('load-all-subs-btn')?.addEventListener('click', loadAllSubscriptions);
+    // Кнопки «Обновить» — принудительный перезапрос данных раздела
+    document.getElementById('load-reports-btn')?.addEventListener('click', () => refreshSection('subscriptions'));
+    document.getElementById('load-catalogs-btn')?.addEventListener('click', () => refreshSection('catalogs'));
+    document.getElementById('load-publications-btn')?.addEventListener('click', () => refreshSection('publications'));
+    document.getElementById('load-clients-btn')?.addEventListener('click', () => refreshSection('clients'));
+    document.getElementById('load-prices-btn')?.addEventListener('click', () => refreshSection('prices'));
+    document.getElementById('load-addresses-btn')?.addEventListener('click', () => refreshSection('addresses'));
+    document.getElementById('load-services-btn')?.addEventListener('click', () => refreshSection('services'));
+    document.getElementById('load-all-subs-btn')?.addEventListener('click', () => refreshSection('all-subscriptions'));
+
+    // Диалоги подтверждения/ввода и закрытие модалок по Esc/фону
+    setupDialogs();
 
     // Кнопки добавления
     document.getElementById('add-catalog-btn')?.addEventListener('click', createNewCatalog);
@@ -32,9 +35,9 @@ function setupEventListeners() {
     document.getElementById('add-client-btn')?.addEventListener('click', showAddClientModal);
 
     // Кнопки сохранения в модальных окнах
-    document.getElementById('save-new-catalog')?.addEventListener('click', saveNewCatalog);
-    document.getElementById('save-new-publication')?.addEventListener('click', saveNewPublication);
-    document.getElementById('save-new-price')?.addEventListener('click', saveNewPrice);
+    document.getElementById('save-new-catalog')?.addEventListener('click', e => withButtonLoading(e.currentTarget, () => saveNewCatalog()));
+    document.getElementById('save-new-publication')?.addEventListener('click', e => withButtonLoading(e.currentTarget, () => saveNewPublication()));
+    document.getElementById('save-new-price')?.addEventListener('click', e => withButtonLoading(e.currentTarget, () => saveNewPrice()));
 
     // Навигация по разделам
     document.querySelectorAll('.menu-item').forEach(item => {
@@ -95,6 +98,7 @@ function setupEventListeners() {
     document.getElementById('logout-btn')?.addEventListener('click', () => {
         cookies.delete('token');
         currentUser = null;
+        resetDataLoaded();
         document.getElementById('main-container').classList.add('hidden');
         document.getElementById('auth-modal').classList.remove('hidden');
         notify('Выход выполнен');

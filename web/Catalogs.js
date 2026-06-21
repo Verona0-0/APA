@@ -22,8 +22,7 @@ async function loadCatalogs() {
         currentCatalogs = result;
         renderCatalogsList(result);
         dataLoaded.catalogs = true;
-        notify('Каталоги загружены', 'success');
-    } catch (e) { notify(e.message, 'error'); }
+    } catch (e) { notify(e.message, 'error'); showSectionError('catalogs-grid'); }
 }
 
 async function performDeleteCatalog(catalogId) {
@@ -34,7 +33,7 @@ async function performDeleteCatalog(catalogId) {
 }
 
 window.deleteCatalog = async function (catalogId) {
-    if (confirm('Удалить каталог? Издания не будут удалены.')) {
+    if (await confirmDialog('Удалить каталог? Издания не будут удалены.')) {
         try {
             await performDeleteCatalog(catalogId);
             notify('Каталог удалён', 'success');
@@ -103,7 +102,7 @@ async function loadCatalogPublications(catalogId) {
 }
 
 window.removeFromCatalog = async function (relationId, catalogId) {
-    if (confirm('Удалить издание из каталога?')) {
+    if (await confirmDialog('Убрать издание из каталога?')) {
         try {
             await api(`/api/PublicationsCatalogs/${relationId}`, { method: 'DELETE' });
             notify('Удалено', 'success');

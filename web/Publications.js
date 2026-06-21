@@ -18,8 +18,7 @@ async function loadPublications() {
         }));
         renderPublicationsList(currentPublications);
         dataLoaded.publications = true;
-        notify('Издания загружены', 'success');
-    } catch (e) { notify('Ошибка: ' + e.message, 'error'); }
+    } catch (e) { notify('Ошибка: ' + e.message, 'error'); showSectionError('publications-grid'); }
 }
 
 async function createPublication(name) {
@@ -38,7 +37,7 @@ async function performDeletePublication(id) {
 }
 
 window.deletePublication = async function (id) {
-    if (confirm('Удалить издание?')) {
+    if (await confirmDialog('Удалить издание? Действие необратимо.')) {
         try {
             await performDeletePublication(id);
             notify('Издание удалено', 'success');
@@ -64,9 +63,7 @@ window.editPublication = async function (id) {
             </div>
         `).join('');
     } else priceHistoryDiv.innerHTML = '<span style="color:#999;font-size:0.9rem;">Нет истории цен</span>';
-    await loadTypesForDescription();
-    cancelDescriptionEdit();
-    await loadPublicationDescriptions(id);
+    await renderDescriptionsForm(id);
     await showPubCoverPreview(id);
     setupCoverInput();
     document.getElementById('publication-modal').classList.remove('hidden');
@@ -164,7 +161,7 @@ async function uploadCoverFile(pubId, file) {
 
 window.deletePubCover = async function () {
     const id = parseInt(document.getElementById('publication-edit-id').value);
-    if (!confirm('Удалить обложку?')) return;
+    if (!await confirmDialog('Удалить обложку?')) return;
     try {
         await api(`/api/Covers/${id}`, { method: 'DELETE' });
         const old = coverCache.get(id);

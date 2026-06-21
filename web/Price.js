@@ -16,8 +16,7 @@ async function loadSubscriptionPrices() {
         }));
         renderPricesList(withNames, true);
         dataLoaded.prices = true;
-        notify('Цены загружены', 'success');
-    } catch (e) { notify(e.message, 'error'); }
+    } catch (e) { notify(e.message, 'error'); showSectionError('prices-grid'); }
 }
 
 function renderPricesList(prices, showOnlyActive) {
@@ -62,7 +61,7 @@ window.toggleInactivePrices = function () {
 };
 
 window.deletePrice = async function (priceId) {
-    if (confirm('Удалить запись о цене?')) {
+    if (await confirmDialog('Удалить запись о цене?')) {
         try {
             await api(`/api/SubscriptionPrices/${priceId}`, { method: 'DELETE' });
             notify('Цена удалена', 'success');
