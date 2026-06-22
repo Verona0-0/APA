@@ -16,6 +16,7 @@
     <script src="Price.js"></script>
     <script src="Report.js"></script>
     <script src="AllSubscriptions.js"></script>
+    <script src="Documents.js"></script>
     <script src="UI.js"></script>
     <script src="Init.js"></script>
 </head>
@@ -45,7 +46,7 @@
 
     <div id="main-container" class="hidden">
         <header class="header">
-            <div class="logo">📚 BookSub</div>
+            <div class="logo">Почтовая подписка</div>
             <div class="header-center"><h1 id="page-title">Отчёты</h1></div>
             <div class="profile-section">
                 <span id="user-name"></span>
@@ -72,6 +73,32 @@
                     <h2>Отчёты</h2>
                     <button id="load-reports-btn" class="btn-primary">Обновить</button>
                 </div>
+
+                <!-- Печатные формы / документы -->
+                <div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+                    <h3 style="margin-bottom:1rem;">Печатные формы</h3>
+
+                    <!-- Отчёт по подпискам за период -->
+                    <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+                        <div class="field" style="margin:0;"><label>Отчёт с</label><input type="date" id="report-date-from" class="field-input" style="width:160px;"></div>
+                        <div class="field" style="margin:0;"><label>по</label><input type="date" id="report-date-to" class="field-input" style="width:160px;"></div>
+                        <button class="btn-secondary" onclick="printSubscriptionsReport()">Отчёт по подпискам</button>
+                    </div>
+
+                    <div class="btn-group" style="flex-wrap:wrap;gap:0.75rem;margin-top:1rem;">
+                        <button class="btn-secondary" onclick="printServicesPriceList()">Прайс-лист услуг</button>
+                        <button class="btn-secondary" onclick="printPublicationsPriceList()">Прайс-лист изданий</button>
+                    </div>
+
+                    <div style="display:flex;gap:0.5rem;align-items:flex-end;margin-top:1rem;flex-wrap:wrap;">
+                        <div class="field" style="flex:1;min-width:240px;margin:0;">
+                            <label>Квитанция по подписке</label>
+                            <select id="receipt-sub-select" class="field-input"></select>
+                        </div>
+                        <button class="btn-secondary" onclick="printSelectedReceipt()">Печать квитанции</button>
+                    </div>
+                </div>
+
                 <div class="cards-grid" id="reports-grid">
                     <div class="loading-state"><div class="spinner"></div><span>Загрузка…</span></div>
                 </div>
@@ -85,6 +112,9 @@
                         <button id="load-catalogs-btn" class="btn-primary">Обновить</button>
                         <button id="add-catalog-btn" class="btn-primary">Добавить</button>
                     </div>
+                </div>
+                <div style="margin-bottom:1.5rem;">
+                    <input type="text" id="catalog-search" class="field-input" style="max-width:360px;" placeholder="Поиск по названию каталога...">
                 </div>
                 <div id="catalogs-grid">
                     <div class="loading-state"><div class="spinner"></div><span>Загрузка…</span></div>
@@ -100,6 +130,15 @@
                         <button id="add-publication-btn" class="btn-primary">Добавить</button>
                     </div>
                 </div>
+                <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center;">
+                    <input type="text" id="pub-search" class="field-input" style="flex:1;min-width:200px;" placeholder="Поиск по названию...">
+                    <input type="number" id="pub-price-min" class="field-input" style="width:130px;" placeholder="Цена от" min="0">
+                    <input type="number" id="pub-price-max" class="field-input" style="width:130px;" placeholder="Цена до" min="0">
+                    <div class="btn-group">
+                        <button id="pub-view-cards" class="btn-primary" onclick="setPubView('cards')">Карточки</button>
+                        <button id="pub-view-list" class="btn-secondary" onclick="setPubView('list')">Список</button>
+                    </div>
+                </div>
                 <div class="cards-grid" id="publications-grid">
                     <div class="loading-state"><div class="spinner"></div><span>Загрузка…</span></div>
                 </div>
@@ -109,16 +148,22 @@
             <section id="prices" class="section">
                 <div class="section-header">
                     <h2>Цены подписок</h2>
-                    <div class="btn-group" style="flex-wrap:wrap;">
+                    <div class="btn-group">
                         <button id="load-prices-btn" class="btn-primary">Обновить</button>
                         <button id="add-price-btn" class="btn-primary">Добавить цену</button>
-                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-                            <input type="checkbox" id="show-inactive-prices" onchange="toggleInactivePrices()">
-                            Показать неактивные
-                        </label>
                     </div>
                 </div>
-                <div class="cards-grid" id="prices-grid">
+                <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center;">
+                    <select id="price-pub-filter" class="field-input" style="min-width:240px;flex:1;">
+                        <option value="">Все издания (текущие цены)</option>
+                    </select>
+                    <input type="number" id="price-min" class="field-input" style="width:130px;" placeholder="Цена от" min="0">
+                    <input type="number" id="price-max" class="field-input" style="width:130px;" placeholder="Цена до" min="0">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" id="show-inactive-prices"> Показать неактивные
+                    </label>
+                </div>
+                <div id="prices-grid">
                     <div class="loading-state"><div class="spinner"></div><span>Загрузка…</span></div>
                 </div>
             </section>
@@ -187,13 +232,20 @@
                     <h2>Подписки</h2>
                     <button id="load-all-subs-btn" class="btn-primary">Обновить</button>
                 </div>
-                <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+                <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center;">
                     <input type="text" id="subs-search" class="field-input" style="flex:1;min-width:200px;" placeholder="Поиск по клиенту или изданию...">
-                    <select id="subs-status-filter" class="field-input" style="width:180px;">
+                    <select id="subs-status-filter" class="field-input" style="width:160px;">
                         <option value="all">Все статусы</option>
                         <option value="active">Активные</option>
+                        <option value="future">Будущие</option>
                         <option value="expired">Истекшие</option>
                     </select>
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:var(--gray);">Начало с
+                        <input type="date" id="subs-date-from" class="field-input" style="width:150px;"></label>
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:var(--gray);">по
+                        <input type="date" id="subs-date-to" class="field-input" style="width:150px;"></label>
+                    <input type="number" id="subs-price-min" class="field-input" style="width:120px;" placeholder="Цена от" min="0">
+                    <input type="number" id="subs-price-max" class="field-input" style="width:120px;" placeholder="Цена до" min="0">
                 </div>
                 <div id="all-subs-container"><div class="loading-state"><div class="spinner"></div><span>Загрузка…</span></div></div>
             </section>
@@ -310,6 +362,20 @@
             </div>
         </div>
 
+        <!-- Просмотр каталога -->
+        <div id="catalog-view-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3 id="catalog-view-title">Каталог</h3>
+                    <button class="close-btn" onclick="closeModal('catalog-view-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="catalog-view-count" style="color:var(--gray);font-size:0.9rem;margin-bottom:0.75rem;"></div>
+                    <div id="catalog-view-list" style="max-height:420px;overflow:auto;"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Изменить цену -->
         <div id="price-modal" class="modal-overlay hidden">
             <div class="modal-box">
@@ -339,8 +405,29 @@
                     <div class="field"><label>Издание</label><select id="new-price-publication"></select></div>
                     <div class="field"><label>Цена (руб)</label><input type="number" id="new-price-value" step="0.01" min="0"></div>
                     <div class="field"><label>Дата начала</label><input type="date" id="new-price-date-start"></div>
-                    <div class="field"><label>Дата окончания (необязательно)</label><input type="date" id="new-price-date-end"></div>
+                    <div class="field"><label>Дата закрытия предыдущей цены</label>
+                        <input type="date" id="new-price-prev-close">
+                        <small style="color:var(--gray);display:block;margin-top:0.25rem;">Если у издания уже есть активная цена, она будет закрыта этой датой.</small>
+                    </div>
+                    <div class="field"><label>Дата окончания новой цены (необязательно)</label><input type="date" id="new-price-date-end"></div>
                     <button class="btn-primary" id="save-new-price">Добавить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Цена услуги -->
+        <div id="service-price-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Цена услуги</h3>
+                    <button class="close-btn" onclick="closeModal('service-price-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="service-price-id">
+                    <div class="field"><label>Услуга</label><input type="text" id="service-price-name" readonly style="background:#f5f5f5;"></div>
+                    <div class="field"><label>Цена (руб)</label><input type="number" id="service-price-value" step="0.01" min="0"></div>
+                    <div class="field"><label>Действует с</label><input type="date" id="service-price-date-start"></div>
+                    <button class="btn-primary" onclick="withButtonLoading(this, () => saveServicePrice())">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -438,6 +525,34 @@
                     <div style="display:flex;gap:0.5rem;">
                         <select id="sub-services-add-select" class="field-input" style="flex:1;"></select>
                         <button class="btn-primary" onclick="addSubService()">Добавить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Просмотр / изменение подписки -->
+        <div id="sub-detail-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3>Подписка</h3>
+                    <button class="close-btn" onclick="closeModal('sub-detail-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="sub-detail-id">
+                    <div style="margin-bottom:1rem;">
+                        <strong id="sub-detail-client"></strong>
+                        <div id="sub-detail-pub" style="margin-top:0.2rem;"></div>
+                        <div id="sub-detail-period" style="color:#7f8c8d;font-size:0.9rem;margin-top:0.2rem;"></div>
+                        <div id="sub-detail-price" style="color:var(--primary);font-weight:700;margin-top:0.2rem;"></div>
+                    </div>
+                    <div class="field">
+                        <label>Адрес доставки</label>
+                        <select id="sub-detail-address" class="field-input"></select>
+                    </div>
+                    <div class="btn-group" style="flex-wrap:wrap;">
+                        <button class="btn-primary" onclick="withButtonLoading(this, () => saveSubAddress())">Сохранить адрес</button>
+                        <button class="btn-secondary" onclick="manageSubServices(parseInt(document.getElementById('sub-detail-id').value))">Услуги подписки</button>
+                        <button class="btn-secondary" onclick="printSubscriptionReceipt(parseInt(document.getElementById('sub-detail-id').value))">Квитанция</button>
                     </div>
                 </div>
             </div>

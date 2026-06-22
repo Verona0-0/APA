@@ -26,6 +26,8 @@ public class Database : IDatabase
 
     public IDBServices Services =>new DBServices();
 
+    public IDBServicePrices ServicePrices =>new DBServicePrices();
+
     public IDBSubscriptions Subscriptions =>new DBSubscriptions();
 
     public IDBSubscriptionPrices SubscriptionPrices =>new DBSubscriptionPrices();

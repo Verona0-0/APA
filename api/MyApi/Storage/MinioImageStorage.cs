@@ -30,7 +30,7 @@ public class MinioImageStorage : IImageStorage
         await _minio.PutObjectAsync(new PutObjectArgs()
             .WithBucket(_bucket)
             .WithObject(objectName)
-            .WithStreamData(content)   // отдаём поток как есть, без буферизации в byte[]
+            .WithStreamData(content)   
             .WithObjectSize(size)
             .WithContentType(contentType), ct);
     }

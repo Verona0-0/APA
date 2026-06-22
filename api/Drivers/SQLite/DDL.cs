@@ -104,6 +104,17 @@ CREATE TABLE IF NOT EXISTS SubscriptionPrices (
     DateStart DATE NOT NULL,
     DateEnd DATE,
     FOREIGN KEY (PublicationsID) REFERENCES Publications(PublicationsID)
+);
+
+
+CREATE TABLE IF NOT EXISTS ServicePrices (
+    ServicePricesID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ServicesID INTEGER NOT NULL,
+    Price REAL NOT NULL,
+    Date DATETIME NOT NULL,
+    DateStart DATE NOT NULL,
+    DateEnd DATE,
+    FOREIGN KEY (ServicesID) REFERENCES Services(ServicesID)
 );"
     };
 }

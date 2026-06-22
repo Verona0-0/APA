@@ -97,6 +97,16 @@ public class DDL
             DateStart DATE NOT NULL,
             DateEnd DATE,
             FOREIGN KEY (PublicationsID) REFERENCES Publications(PublicationsID)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;",
+
+        @"CREATE TABLE IF NOT EXISTS ServicePrices (
+            ServicePricesID INT AUTO_INCREMENT PRIMARY KEY,
+            ServicesID INT NOT NULL,
+            Price DECIMAL(10,2) NOT NULL,
+            Date DATETIME NOT NULL,
+            DateStart DATE NOT NULL,
+            DateEnd DATE,
+            FOREIGN KEY (ServicesID) REFERENCES Services(ServicesID)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;"
     };
 }

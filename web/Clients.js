@@ -1,5 +1,5 @@
 // ========== КЛИЕНТЫ ==========
-// Примечание: allAddressesFlat и typeAddresses объявлены глобально в Addres.js
+// allAddressesFlat и typeAddresses лежат в Addres.js (они глобальные)
 
 async function loadClients() {
     try {
@@ -54,8 +54,9 @@ window.deleteClient = async function (clientId, event) {
     if (!await confirmDialog('Удалить клиента?')) return;
     try {
         const subs = await getClientSubscriptions(clientId);
-        const active = subs.filter(s => !s.dateEnd || new Date(s.dateEnd) > new Date());
-        if (active.length) throw new Error(`У клиента ${active.length} активных подписок. Удалите их сначала.`);
+        // нельзя удалить, пока есть живые или будущие подписки (т.е. не истёкшие)
+        const blocking = subs.filter(s => subStatus(s) !== 'expired');
+        if (blocking.length) throw new Error(`У клиента ${blocking.length} действующих подписок. Удалите их сначала.`);
         await api(`/api/Client/${clientId}`, { method: 'DELETE' });
         notify('Клиент удалён', 'success');
         await loadClients();
@@ -87,7 +88,7 @@ window.showClientDetails = async function (clientId) {
         nextYear.setFullYear(nextYear.getFullYear() + 1);
         document.getElementById('subscription-date-end').value = nextYear.toISOString().split('T')[0];
 
-        // Загружаем адреса (из глобального allAddressesFlat, если уже загружены)
+        // берём адреса (если уже лежат в allAddressesFlat — заново не грузим)
         if (!allAddressesFlat.length) {
             allAddressesFlat = await api('/api/DeliveryAddress') || [];
         }
@@ -127,8 +128,31 @@ window.addSubscription = async function () {
         if (!publicationsID || !dateStart || !dateEnd || !deliveryAddressID)
             throw new Error('Заполните все поля, включая адрес доставки');
 
+        // конец должен быть позже начала (сравниваем по дням)
+        const startD = dayFloor(dateStart);
+        const endD = dayFloor(dateEnd);
+        if (endD <= startD)
+            throw new Error('Дата окончания должна быть позже даты начала');
+
+        // без дублей: пока подписка на это издание не кончилась, новую можно
+        // оформить только с даты окончания предыдущей
+        const clientSubs = (await api('/api/Subscriptions'))
+            .filter(s => s.clientID === clientId && s.publicationsID === publicationsID && subStatus(s) !== 'expired');
+        if (clientSubs.some(s => !s.dateEnd))
+            throw new Error('У клиента уже есть бессрочная подписка на это издание');
+        const latestEnd = clientSubs.reduce((m, s) => {
+            const e = dayFloor(s.dateEnd);
+            return (!m || e > m) ? e : m;
+        }, null);
+        if (latestEnd && startD < latestEnd)
+            throw new Error(`Подписка на это издание уже действует до ${latestEnd.toLocaleDateString('ru-RU')}. Новую можно оформить не раньше этой даты`);
+
+        // цена — та, что действует на дату начала. бэкенд её всё равно перепроверит.
+        // цены нет — оформить нельзя
         const prices = await api('/api/SubscriptionPrices');
-        const currPrice = prices.find(p => p.publicationsID === publicationsID && !p.dateEnd);
+        const price = pubPrice(prices, publicationsID, dateStart);
+        if (price == null)
+            throw new Error('У выбранного издания не задана цена на дату начала подписки');
 
         await api('/api/Subscriptions', {
             method: 'POST',
@@ -139,7 +163,7 @@ window.addSubscription = async function () {
                 date: new Date().toISOString(),
                 dateStart: new Date(dateStart).toISOString(),
                 dateEnd: new Date(dateEnd).toISOString(),
-                price: currPrice?.price || 0
+                price
             })
         });
         notify('Подписка оформлена', 'success');
@@ -181,8 +205,9 @@ function renderClientDetails(client, subscriptions) {
                 </div>
                 <span style="color:var(--primary);font-weight:700;">${s.price} руб</span>
                 <div class="row-actions">
+                    <button class="btn-secondary" onclick="printSubscriptionReceipt(${s.subscriptionsID})">Квитанция</button>
                     <button class="btn-secondary" onclick="manageSubServices(${s.subscriptionsID})">Услуги</button>
-                    <button class="btn-danger" onclick="deleteSubscription(${s.subscriptionsID})">✖</button>
+                    <button class="btn-danger" onclick="deleteSubscription(${s.subscriptionsID})">Удалить</button>
                 </div>
             </div>`;
     }).join('');
@@ -225,7 +250,7 @@ function buildAddressLevel(container, parentId) {
     });
 
     select.addEventListener('change', () => {
-        // Убрать все следующие селекторы
+        // убираем все селекторы ниже этого
         while (select.nextSibling) container.removeChild(select.nextSibling);
         const addrId = parseInt(select.value);
         if (addrId) {

@@ -1,7 +1,6 @@
 // ========== UI ==========
 
-// Карта разделов: какая функция грузит данные, какой флаг отвечает за
-// «уже загружено» и в какой контейнер показывать спиннер.
+// карта разделов: чем грузить, флаг «уже загружено» и куда показывать спиннер
 const sectionConfig = {
     subscriptions:       { load: () => loadReports(),           key: 'reports',         container: 'reports-grid',          title: 'Отчёты' },
     catalogs:            { load: () => loadCatalogs(),          key: 'catalogs',        container: 'catalogs-grid',         title: 'Каталоги' },
@@ -19,7 +18,7 @@ function showSectionLoading(containerId) {
 }
 window.showSectionLoading = showSectionLoading;
 
-// Заменяет спиннер сообщением об ошибке, чтобы он не «висел» вечно.
+// чтобы спиннер не крутился вечно — показываем текст ошибки
 function showSectionError(containerId) {
     const el = document.getElementById(containerId);
     if (el) el.innerHTML = '<div class="empty-msg">Не удалось загрузить данные. Нажмите «Обновить», чтобы повторить.</div>';
@@ -33,14 +32,39 @@ window.showSection = function (section) {
     const cfg = sectionConfig[section];
     document.getElementById('page-title').textContent = cfg?.title || '';
 
-    // Ленивая автозагрузка: данные подтягиваются при первом открытии раздела.
-    if (cfg && !dataLoaded[cfg.key]) {
-        showSectionLoading(cfg.container);
+    // автообновление: каждый раз при открытии раздела грузим заново, чтобы не
+    // жать «Обновить» руками. спиннер только в первый раз, иначе переходы моргают
+    if (cfg) {
+        if (!dataLoaded[cfg.key]) showSectionLoading(cfg.container);
         cfg.load();
     }
 };
 
-// Принудительное обновление раздела (кнопка «Обновить»).
+// перезагрузить раздел, который открыт сейчас (когда вернулись в окно)
+function refreshActiveSection() {
+    // вошли или нет — смотрим по main-container. currentUser тут ненадёжен:
+    // при входе по токену в window он не попадает
+    if (document.getElementById('main-container')?.classList.contains('hidden')) return;
+    // если открыто окно — человек что-то редактирует, не трогаем данные
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+    const active = document.querySelector('.section.active');
+    const cfg = active && sectionConfig[active.id];
+    if (cfg) cfg.load();
+}
+
+// обновляем, когда вернулись на вкладку/в окно. focus и visibilitychange
+// прилетают вместе, поэтому обновляем не чаще раза в 2 секунды
+let _lastAutoRefresh = 0;
+function autoRefreshOnReturn() {
+    const now = Date.now();
+    if (now - _lastAutoRefresh < 2000) return;
+    _lastAutoRefresh = now;
+    refreshActiveSection();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) autoRefreshOnReturn(); });
+window.addEventListener('focus', autoRefreshOnReturn);
+
+// ручное обновление по кнопке «Обновить»
 window.refreshSection = function (section) {
     const cfg = sectionConfig[section];
     if (!cfg) return;
@@ -57,11 +81,26 @@ window.notify = function (text, type = 'success') {
     setTimeout(() => div.remove(), 4000);
 };
 
-window.openModal = function (id) { document.getElementById(id).classList.remove('hidden'); };
-window.closeModal = function (id) { document.getElementById(id).classList.add('hidden'); };
+// открываем окно поверх остальных: задираем z-index выше всех открытых. иначе
+// при одинаковом z-index то, что раньше в html, спрячется под текущим
+// (так «Услуги подписки» прятались под окном подписки)
+window.openModal = function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    const maxZ = open.reduce((m, o) => Math.max(m, parseInt(o.style.zIndex) || 2000), 2000);
+    el.style.zIndex = String(maxZ + 1);
+    el.classList.remove('hidden');
+};
+window.closeModal = function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('hidden');
+    el.style.zIndex = '';
+};
 
-// Блокирует кнопку и показывает на ней спиннер на время async-операции.
-// Использование в onclick: withButtonLoading(this, () => saveX())
+// пока идёт запрос — блокируем кнопку и крутим на ней спиннер
+// в onclick: withButtonLoading(this, () => saveX())
 window.withButtonLoading = async function (btn, fn) {
     if (!btn) return fn();
     const original = btn.innerHTML;
@@ -119,8 +158,8 @@ function resolvePrompt(value) {
     if (r) r(value);
 }
 
-// Закрытие модалки по Esc и клику на затемнение. Диалоги при этом
-// «отменяются» (резолвятся в false/null), а auth-modal не закрываем.
+// закрыть верхнее окно (по Esc / клику на фон). диалоги при этом отменяем
+// (false/null), окно входа не закрываем
 function closeTopmostModal() {
     const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
     if (!open.length) return;
@@ -131,11 +170,10 @@ function dismissModal(overlay) {
     if (!overlay || overlay.id === 'auth-modal') return;
     if (overlay.id === 'confirm-modal') return resolveConfirm(false);
     if (overlay.id === 'prompt-modal') return resolvePrompt(null);
-    overlay.classList.add('hidden');
+    closeModal(overlay.id);
 }
 
-// Навешивает обработчики диалогов и закрытия модалок. Вызывается из Init.js
-// после готовности DOM.
+// вешаем обработчики диалогов и закрытия окон. зовётся из Init.js, когда DOM готов
 window.setupDialogs = function () {
     document.getElementById('confirm-ok')?.addEventListener('click', () => resolveConfirm(true));
     document.getElementById('confirm-cancel')?.addEventListener('click', () => resolveConfirm(false));
@@ -146,11 +184,11 @@ window.setupDialogs = function () {
         if (e.key === 'Enter') resolvePrompt(e.target.value);
     });
 
-    // Esc — закрыть верхнюю модалку.
+    // Esc — закрыть верхнее окно
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeTopmostModal();
     });
-    // Клик на затемнённый фон — закрыть именно эту модалку.
+    // клик по тёмному фону — закрыть именно это окно
     document.addEventListener('click', e => {
         if (e.target.classList?.contains('modal-overlay') && !e.target.classList.contains('hidden')) {
             dismissModal(e.target);
@@ -172,7 +210,7 @@ function renderClientsList(clients) {
                 <div class="list-row" style="cursor:pointer;" onclick="showClientDetails(${c.clientID})">
                     <div>
                         <strong>${c.fio || `Клиент ${c.clientID}`}</strong>
-                        ${c.phone ? `<span style="margin-left:0.75rem;color:#7f8c8d;font-size:0.9rem;">📞 ${c.phone}</span>` : ''}
+                        ${c.phone ? `<span style="margin-left:0.75rem;color:#7f8c8d;font-size:0.9rem;">тел. ${c.phone}</span>` : ''}
                     </div>
                     <div class="row-actions">
                         <button class="btn-secondary" onclick="event.stopPropagation();showClientDetails(${c.clientID})">Управление</button>
@@ -202,12 +240,12 @@ function renderPublicationsList(publications) {
     }
     grid.innerHTML = publications.map((p, i) => `
         <div class="card">
-            <div id="pcover-${p.id}" class="pub-cover-card" style="background:hsl(${200 + i * 23},60%,88%);">
-                <span style="font-size:2.5rem;">📚</span>
+            <div id="pcover-${p.id}" class="pub-cover-card">
+                <span style="color:#9aa5b1;font-size:0.85rem;">нет обложки</span>
             </div>
             <div class="card-title" style="margin-top:0.75rem;">${p.name}</div>
             <div class="card-price">${p.priceText}</div>
-            ${p.hasDescriptions ? '<div style="text-align:center;color:#7f8c8d;font-size:0.85rem;margin-bottom:0.5rem;">📝 Есть описание</div>' : ''}
+            ${formatPubDescriptions(p.descriptions) ? `<div style="margin:0.35rem 0 0.6rem;">${formatPubDescriptions(p.descriptions)}</div>` : ''}
             <div class="card-actions">
                 <button class="btn-secondary" onclick="editPublication(${p.id})">Изменить</button>
                 <button class="btn-danger" onclick="deletePublication(${p.id})">Удалить</button>
@@ -232,6 +270,7 @@ function renderCatalogsList(catalogs) {
             <div class="catalog-head">
                 <h3>${cat.name}</h3>
                 <div class="row-actions">
+                    <button class="btn-secondary" onclick="viewCatalog(${cat.id})">Открыть</button>
                     <button class="btn-secondary" onclick="editCatalog(${cat.id})">Изменить</button>
                     <button class="btn-danger" onclick="deleteCatalog(${cat.id})">Удалить</button>
                 </div>
@@ -241,8 +280,8 @@ function renderCatalogsList(catalogs) {
             : `<div class="pub-filmstrip">
                     ${cat.publications.map((pub, pi) => `
                         <div class="pub-film">
-                            <div id="catcover-${cat.id}-${pub.id}" class="pub-poster" style="background:hsl(${(200 + ci * 30 + pi * 10) % 360},60%,85%);">
-                                <span style="font-size:2rem;">📚</span>
+                            <div id="catcover-${cat.id}-${pub.id}" class="pub-poster">
+                                <span style="color:#9aa5b1;font-size:0.8rem;">нет обложки</span>
                             </div>
                             <div class="pub-film-name">${pub.name}</div>
                         </div>

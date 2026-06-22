@@ -15,7 +15,7 @@ async function init() {
 }
 
 function setupEventListeners() {
-    // Кнопки «Обновить» — принудительный перезапрос данных раздела
+    // кнопки «Обновить» — тянем данные раздела заново
     document.getElementById('load-reports-btn')?.addEventListener('click', () => refreshSection('subscriptions'));
     document.getElementById('load-catalogs-btn')?.addEventListener('click', () => refreshSection('catalogs'));
     document.getElementById('load-publications-btn')?.addEventListener('click', () => refreshSection('publications'));
@@ -25,26 +25,26 @@ function setupEventListeners() {
     document.getElementById('load-services-btn')?.addEventListener('click', () => refreshSection('services'));
     document.getElementById('load-all-subs-btn')?.addEventListener('click', () => refreshSection('all-subscriptions'));
 
-    // Диалоги подтверждения/ввода и закрытие модалок по Esc/фону
+    // диалоги подтверждения/ввода и закрытие окон по Esc/фону
     setupDialogs();
 
-    // Кнопки добавления
+    // кнопки добавления
     document.getElementById('add-catalog-btn')?.addEventListener('click', createNewCatalog);
     document.getElementById('add-publication-btn')?.addEventListener('click', createNewPublication);
     document.getElementById('add-price-btn')?.addEventListener('click', showAddPriceModal);
     document.getElementById('add-client-btn')?.addEventListener('click', showAddClientModal);
 
-    // Кнопки сохранения в модальных окнах
+    // кнопки сохранения в окнах
     document.getElementById('save-new-catalog')?.addEventListener('click', e => withButtonLoading(e.currentTarget, () => saveNewCatalog()));
     document.getElementById('save-new-publication')?.addEventListener('click', e => withButtonLoading(e.currentTarget, () => saveNewPublication()));
     document.getElementById('save-new-price')?.addEventListener('click', e => withButtonLoading(e.currentTarget, () => saveNewPrice()));
 
-    // Навигация по разделам
+    // навигация по разделам
     document.querySelectorAll('.menu-item').forEach(item => {
         item.addEventListener('click', () => showSection(item.dataset.section));
     });
 
-    // Переключение вкладок авторизации
+    // переключение вкладок: вход / регистрация
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.tab-btn, .auth-form').forEach(el => el.classList.remove('active'));
@@ -54,7 +54,7 @@ function setupEventListeners() {
         });
     });
 
-    // Форма входа
+    // форма входа
     document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button');
@@ -73,7 +73,7 @@ function setupEventListeners() {
         finally { btn.disabled = false; btn.textContent = 'Войти'; }
     });
 
-    // Форма регистрации
+    // форма регистрации
     document.getElementById('register-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button');
@@ -94,7 +94,7 @@ function setupEventListeners() {
         finally { btn.disabled = false; btn.textContent = 'Зарегистрироваться'; }
     });
 
-    // Выход
+    // выход
     document.getElementById('logout-btn')?.addEventListener('click', () => {
         cookies.delete('token');
         currentUser = null;

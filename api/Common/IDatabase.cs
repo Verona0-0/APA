@@ -10,6 +10,7 @@ namespace MyApp.Common
         IDBPublications Publications { get; }
         IDBPublicationsCatalogs PublicationsCatalogs { get; }
         IDBServices Services { get; }
+        IDBServicePrices ServicePrices { get; }
         IDBSubscriptions Subscriptions { get; }
         IDBSubscriptionPrices SubscriptionPrices { get; }
         IDBSubscriptionServices SubscriptionServices { get; }

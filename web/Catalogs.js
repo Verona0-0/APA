@@ -11,19 +11,46 @@ async function loadCatalogs() {
         rels.forEach(r => { if (!group[r.catalogsID]) group[r.catalogsID] = []; group[r.catalogsID].push(r.publicationsID); });
         const result = cats.map(c => {
             const ids = group[c.catalogsID] || [];
+            const allPubs = ids.map(pid => ({ id: pid, name: pubMap[pid] || `Издание ${pid}` }));
             return {
                 id: c.catalogsID,
                 name: c.name || `Каталог ${c.catalogsID}`,
-                publications: ids.slice(0, 10).map(pid => ({ id: pid, name: pubMap[pid] || `Издание ${pid}` })),
+                publications: allPubs.slice(0, 10),
+                allPubs,
                 count: ids.length,
                 isEmpty: ids.length === 0
             };
         });
         currentCatalogs = result;
         renderCatalogsList(result);
+        setupCatalogSearch();
         dataLoaded.catalogs = true;
     } catch (e) { notify(e.message, 'error'); showSectionError('catalogs-grid'); }
 }
+
+// поиск по названию каталога (фильтруем то, что уже загрузили в currentCatalogs)
+function setupCatalogSearch() {
+    const search = document.getElementById('catalog-search');
+    if (!search) return;
+    search.oninput = () => {
+        const q = search.value.trim().toLowerCase();
+        renderCatalogsList(currentCatalogs.filter(c => c.name.toLowerCase().includes(q)));
+    };
+}
+
+// смотрим весь список изданий каталога
+window.viewCatalog = function (catalogId) {
+    const cat = currentCatalogs.find(c => c.id === catalogId);
+    if (!cat) return notify('Каталог не найден', 'error');
+    document.getElementById('catalog-view-title').textContent = cat.name;
+    document.getElementById('catalog-view-count').textContent = `Изданий в каталоге: ${cat.count}`;
+    const list = document.getElementById('catalog-view-list');
+    const pubs = cat.allPubs || [];
+    list.innerHTML = pubs.length
+        ? pubs.map(p => `<div class="list-row"><span>${escapeHtml(p.name)}</span></div>`).join('')
+        : '<div class="empty-msg">В каталоге нет изданий</div>';
+    openModal('catalog-view-modal');
+};
 
 async function performDeleteCatalog(catalogId) {
     const rels = await api('/api/PublicationsCatalogs');
@@ -86,7 +113,7 @@ async function loadCatalogPublications(catalogId) {
         listDiv.innerHTML = myRels.map(rel => `
             <div class="catalog-pub-item">
                 <span>${allPubs.find(p => p.publicationsID === rel.publicationsID)?.name || rel.publicationsID}</span>
-                <button class="remove-btn" onclick="removeFromCatalog(${rel.publicationsCatalogsID}, ${catalogId})">✖</button>
+                <button class="remove-btn" onclick="removeFromCatalog(${rel.publicationsCatalogsID}, ${catalogId})">Удалить</button>
             </div>
         `).join('');
     } else listDiv.innerHTML = '<div class="empty-message">Нет изданий</div>';

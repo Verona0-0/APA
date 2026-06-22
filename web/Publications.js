@@ -2,24 +2,101 @@
 
 async function loadPublications() {
     try {
-        const pubs = await api('/api/Publications');
-        const desc = await api('/api/Description') || [];
-        const prices = await api('/api/SubscriptionPrices') || [];
+        const [pubs, desc, prices, types] = await Promise.all([
+            api('/api/Publications'),
+            api('/api/Description').then(r => r || []).catch(() => []),
+            api('/api/SubscriptionPrices').then(r => r || []).catch(() => []),
+            api('/api/TypeDescription').then(r => r || []).catch(() => [])
+        ]);
+        const typeNameMap = {};
+        types.forEach(t => typeNameMap[t.typeDescriptionID] = t.name);
         const descMap = {};
         desc.forEach(d => { if (!descMap[d.publicationsID]) descMap[d.publicationsID] = []; descMap[d.publicationsID].push(d); });
-        const currentPriceMap = {};
-        prices.forEach(p => { if (!p.dateEnd) currentPriceMap[p.publicationsID] = p; });
-        currentPublications = pubs.map(p => ({
-            id: p.publicationsID,
-            name: p.name || `Издание ${p.publicationsID}`,
-            price: currentPriceMap[p.publicationsID]?.price || 0,
-            priceText: currentPriceMap[p.publicationsID] ? `${currentPriceMap[p.publicationsID].price} руб` : 'Нет цены',
-            hasDescriptions: (descMap[p.publicationsID] || []).length > 0
-        }));
-        renderPublicationsList(currentPublications);
+        currentPublications = pubs.map(p => {
+            const price = pubPrice(prices, p.publicationsID);
+            return {
+                id: p.publicationsID,
+                name: p.name || `Издание ${p.publicationsID}`,
+                price: price ?? 0,
+                priceText: price != null ? `${price} руб` : 'Нет цены',
+                descriptions: (descMap[p.publicationsID] || []).map(d => ({
+                    type: typeNameMap[d.typeDescriptionID] || 'Описание',
+                    value: d.name
+                }))
+            };
+        });
+        setupPubFilters();
+        applyPubFilters();
         dataLoaded.publications = true;
     } catch (e) { notify('Ошибка: ' + e.message, 'error'); showSectionError('publications-grid'); }
 }
+
+// делаем html описания издания: «Тип: значение» построчно. нет данных — пусто
+function formatPubDescriptions(ds) {
+    if (!ds || !ds.length) return '';
+    return ds.map(d => `<div style="font-size:0.85rem;color:#5a6b7b;"><span style="color:#95a5a6;">${escapeHtml(d.type)}:</span> ${escapeHtml(d.value)}</div>`).join('');
+}
+window.formatPubDescriptions = formatPubDescriptions;
+
+// поиск, фильтр по цене, вид (карточки/список) ---
+
+var pubView = 'cards';
+
+function setupPubFilters() {
+    ['pub-search', 'pub-price-min', 'pub-price-max'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.oninput = applyPubFilters;
+    });
+}
+
+function applyPubFilters() {
+    const q = (document.getElementById('pub-search')?.value || '').trim().toLowerCase();
+    const min = parseFloat(document.getElementById('pub-price-min')?.value);
+    const max = parseFloat(document.getElementById('pub-price-max')?.value);
+    const list = currentPublications.filter(p => {
+        if (q && !p.name.toLowerCase().includes(q)) return false;
+        if (!isNaN(min) && p.price < min) return false;
+        if (!isNaN(max) && p.price > max) return false;
+        return true;
+    });
+    const grid = document.getElementById('publications-grid');
+    if (grid) grid.className = pubView === 'list' ? 'list-view' : 'cards-grid';
+    if (pubView === 'list') renderPublicationsListView(list);
+    else renderPublicationsList(list);
+}
+window.applyPubFilters = applyPubFilters;
+
+window.setPubView = function (view) {
+    pubView = view;
+    const cards = document.getElementById('pub-view-cards');
+    const listBtn = document.getElementById('pub-view-list');
+    if (cards) cards.className = view === 'cards' ? 'btn-primary' : 'btn-secondary';
+    if (listBtn) listBtn.className = view === 'list' ? 'btn-primary' : 'btn-secondary';
+    applyPubFilters();
+};
+
+// режим списка: компактные строки вместо карточек с обложками
+function renderPublicationsListView(pubs) {
+    const grid = document.getElementById('publications-grid');
+    if (!grid) return;
+    if (!pubs.length) {
+        grid.innerHTML = '<div class="empty-msg">Издания не найдены</div>';
+        return;
+    }
+    grid.innerHTML = pubs.map(p => `
+        <div class="list-row">
+            <div style="flex:1;">
+                <strong>${escapeHtml(p.name)}</strong>
+                ${formatPubDescriptions(p.descriptions)}
+            </div>
+            <span style="color:var(--primary);font-weight:700;margin-right:1rem;white-space:nowrap;">${p.priceText}</span>
+            <div class="row-actions">
+                <button class="btn-secondary" onclick="editPublication(${p.id})">Изменить</button>
+                <button class="btn-danger" onclick="deletePublication(${p.id})">Удалить</button>
+            </div>
+        </div>`).join('');
+}
+window.renderPublicationsListView = renderPublicationsListView;
 
 async function createPublication(name) {
     await api('/api/Publications', { method: 'POST', body: JSON.stringify({ name }) });
@@ -114,7 +191,7 @@ async function getCoverUrl(pubId) {
     } catch { coverCache.set(pubId, null); return null; }
 }
 
-// Вставляет обложку в элемент по id (для карточек и постеров)
+// вставляем обложку в элемент по id (для карточек и постеров)
 window.loadCoverToEl = async function (elId, pubId) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -145,7 +222,7 @@ async function uploadCoverFile(pubId, file) {
     const token = window.cookies.get('token');
     const form = new FormData();
     form.append('file', file);
-    // Если в кэше null — обложки нет → POST, иначе → PUT
+    // в кэше null — обложки нет, значит POST. иначе PUT
     const hasCover = coverCache.has(pubId) && coverCache.get(pubId) !== null;
     const method = hasCover ? 'PUT' : 'POST';
     const res = await fetch(`${API_BASE}/api/Covers/${pubId}`, {
@@ -175,7 +252,7 @@ window.deletePubCover = async function () {
 function setupCoverInput() {
     const input = document.getElementById('cover-file-input');
     if (!input) return;
-    // Заменяем элемент, чтобы убрать старые обработчики
+    // пересоздаём элемент, чтобы слетели старые обработчики
     const fresh = input.cloneNode(true);
     input.parentNode.replaceChild(fresh, input);
     fresh.addEventListener('change', async (e) => {

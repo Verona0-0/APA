@@ -107,7 +107,7 @@ function renderAddrNodes(nodes, depth) {
                         style="background:none;border:none;cursor:${hasChildren ? 'pointer' : 'default'};
                                 width:1.4rem;font-size:0.8rem;color:var(--dark);padding:0;flex-shrink:0;"
                         title="${hasChildren ? (isCollapsed ? 'Развернуть' : 'Свернуть') : ''}">
-                        ${hasChildren ? (isCollapsed ? '▶' : '▼') : ''}
+                        ${hasChildren ? (isCollapsed ? '+' : '−') : ''}
                     </button>
                     <span class="addr-type-badge">${escapeHtml(typeName)}</span>
                     <span style="font-weight:600;flex:1;">${escapeHtml(node.name)}</span>

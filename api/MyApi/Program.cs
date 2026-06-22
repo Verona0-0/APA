@@ -143,7 +143,7 @@ using (var scope = app.Services.CreateScope())
         if (!await roleManager.RoleExistsAsync(roleName))
         {
             await roleManager.CreateAsync(new IdentityRole(roleName));
-            Console.WriteLine($"✅ Роль создана: {roleName}");
+            Console.WriteLine($" Роль создана: {roleName}");
         }
     }
 
@@ -165,7 +165,7 @@ using (var scope = app.Services.CreateScope())
             
             await userManager.AddClaimAsync(user, new Claim(ClaimTypes.Role, role));
 
-            Console.WriteLine($"✅ {username}/pass123 = {role}");
+            Console.WriteLine($" {username}/pass123 = {role}");
         }
     }
 
@@ -207,22 +207,15 @@ using (var scope = app.Services.CreateScope())
             Permissions.Prefixes.Scope + "api1"
         }
         });
-        Console.WriteLine("✅ SPA клиент создан: spa_client");
+        Console.WriteLine(" SPA клиент создан: spa_client");
     }
 }
 
-// Папка со старыми обложками — нужна как источник для разовой миграции в MinIO.
-var coversDir = Path.Combine(
-    app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"),
-    "covers");
-Directory.CreateDirectory(coversDir);
-
-// Готовим хранилище: создаём бакет и переносим уже лежащие на диске обложки.
+// Готовим хранилище обложек: создаём бакет в MinIO, если его ещё нет.
 using (var scope = app.Services.CreateScope())
 {
     var storage = scope.ServiceProvider.GetRequiredService<IImageStorage>();
     await storage.EnsureBucketAsync();
-    await MigrateLocalCoversAsync(storage, coversDir);
 }
 
 if (app.Environment.IsDevelopment())
@@ -239,12 +232,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-app.UseStaticFiles();
 
-// Конструкторы моделей (Publications.Name и т.п.) валидируют значения и бросают
-// ArgumentException прямо во время JSON-десериализации тела запроса. Без этого
-// перехвата исключение долетает до DeveloperExceptionPage и клиент получает
-// сырой стек вместо понятного сообщения об ошибке валидации.
+// модели в конструкторах (Publications.Name и т.п.) проверяют данные и кидают
+// ArgumentException прямо при разборе json. без этого перехвата клиент увидит
+// сырой стек, а не нормальный текст ошибки — ловим и отдаём {error} с кодом 400.
 app.Use(async (context, next) =>
 {
     try
@@ -264,40 +255,3 @@ app.MapControllers();
 
 Console.WriteLine("🚀 API: http://localhost:5000/swagger");
 app.Run("http://localhost:5000");
-
-
-// Разовый перенос обложек с диска в MinIO. Идемпотентно: если объект уже в
-// бакете — пропускаем. Заодно нормализуем CoverPath к имени объекта.
-async Task MigrateLocalCoversAsync(IImageStorage storage, string coversDir)
-{
-    foreach (var pub in DAO.Instance.Publications.Get())
-    {
-        if (string.IsNullOrEmpty(pub.CoverPath)) continue;
-
-        // Старые записи могли хранить путь вида "covers\guid.ext" — берём только имя файла.
-        var objectName = Path.GetFileName(pub.CoverPath);
-
-        if (!await storage.ExistsAsync(objectName))
-        {
-            var localPath = Path.Combine(coversDir, objectName);
-            if (File.Exists(localPath))
-            {
-                await using var fs = File.OpenRead(localPath);
-                await storage.SaveAsync(fs, objectName, ContentTypeForExt(Path.GetExtension(objectName)), fs.Length);
-                Console.WriteLine($"📤 Обложка перенесена в MinIO: {objectName}");
-            }
-        }
-
-        if (pub.CoverPath != objectName)
-            DAO.Instance.Publications.SetCover(pub.PublicationsID, objectName);
-    }
-}
-
-static string ContentTypeForExt(string ext) => ext.ToLowerInvariant() switch
-{
-    ".jpg" or ".jpeg" => "image/jpeg",
-    ".png"            => "image/png",
-    ".webp"           => "image/webp",
-    ".gif"            => "image/gif",
-    _                 => "application/octet-stream"
-};
