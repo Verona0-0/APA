@@ -173,7 +173,7 @@ window.saveNewPublication = async function () {
 
 // ========== ОБЛОЖКИ ==========
 
-const coverCache = new Map(); // pubId -> objectURL | null
+const coverCache = new Map(); 
 
 async function getCoverUrl(pubId) {
     if (coverCache.has(pubId)) return coverCache.get(pubId);
